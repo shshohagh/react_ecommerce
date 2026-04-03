@@ -45,6 +45,7 @@ async function initDb() {
       table.text("description");
       table.decimal("price", 10, 2).notNullable();
       table.text("image"); // base64 or URL
+      table.string("category").defaultTo("Uncategorized");
       table.boolean("is_featured").defaultTo(false);
     });
 
@@ -55,6 +56,7 @@ async function initDb() {
         description: "High-quality sound with noise cancellation technology.",
         price: 199.99,
         image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+        category: "Electronics",
         is_featured: true,
       },
       {
@@ -62,6 +64,7 @@ async function initDb() {
         description: "Track your health and stay connected on the go.",
         price: 299.00,
         image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
+        category: "Electronics",
         is_featured: true,
       },
       {
@@ -69,6 +72,7 @@ async function initDb() {
         description: "Durable and stylish for your daily commute.",
         price: 85.50,
         image: "https://images.unsplash.com/photo-1547949003-9792a18a2601?w=800&q=80",
+        category: "Accessories",
         is_featured: false,
       }
     ]);

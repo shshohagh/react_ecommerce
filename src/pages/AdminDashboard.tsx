@@ -13,7 +13,9 @@ import {
   Truck,
   X,
   LayoutDashboard,
-  Star
+  Star,
+  Search,
+  Filter
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -24,6 +26,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
 
   const { token, logout } = useAuth();
   const navigate = useNavigate();
@@ -33,6 +37,7 @@ export default function AdminDashboard() {
     description: '',
     price: '',
     image: '',
+    category: 'Uncategorized',
     is_featured: false
   });
 
@@ -95,7 +100,7 @@ export default function AdminDashboard() {
       if (res.ok) {
         setIsModalOpen(false);
         setEditingProduct(null);
-        setProductForm({ name: '', description: '', price: '', image: '', is_featured: false });
+        setProductForm({ name: '', description: '', price: '', image: '', category: 'Uncategorized', is_featured: false });
         fetchAll();
       }
     } catch (err) {
@@ -139,10 +144,20 @@ export default function AdminDashboard() {
       description: product.description,
       price: product.price.toString(),
       image: product.image,
+      category: product.category || 'Uncategorized',
       is_featured: product.is_featured
     });
     setIsModalOpen(true);
   };
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         product.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = categoryFilter === 'All' || product.category === categoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
+  const categories = ['All', ...Array.from(new Set(products.map(p => p.category || 'Uncategorized')))];
 
   if (loading) {
     return (
@@ -186,19 +201,46 @@ export default function AdminDashboard() {
 
       {activeTab === 'products' ? (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-gray-900">Inventory ({products.length})</h2>
-            <button
-              onClick={() => {
-                setEditingProduct(null);
-                setProductForm({ name: '', description: '', price: '', image: '', is_featured: false });
-                setIsModalOpen(true);
-              }}
-              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Product
-            </button>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <h2 className="text-xl font-bold text-gray-900">Inventory ({filteredProducts.length})</h2>
+            
+            <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+              <div className="relative flex-grow sm:w-48">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all appearance-none bg-white"
+                >
+                  {categories.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="relative flex-grow sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search products..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
+                />
+              </div>
+              
+              <button
+                onClick={() => {
+                  setEditingProduct(null);
+                  setProductForm({ name: '', description: '', price: '', image: '', category: 'Uncategorized', is_featured: false });
+                  setIsModalOpen(true);
+                }}
+                className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Product
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
@@ -206,57 +248,69 @@ export default function AdminDashboard() {
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
+                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Category</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {products.map(product => (
-                  <tr key={product.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <img
-                          src={product.image}
-                          alt=""
-                          className="h-10 w-10 rounded-lg object-cover mr-3"
-                          referrerPolicy="no-referrer"
-                        />
-                        <div>
-                          <div className="text-sm font-bold text-gray-900">{product.name}</div>
-                          <div className="text-xs text-gray-500 line-clamp-1 max-w-xs">{product.description}</div>
+                {filteredProducts.length > 0 ? (
+                  filteredProducts.map(product => (
+                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <img
+                            src={product.image}
+                            alt=""
+                            className="h-10 w-10 rounded-lg object-cover mr-3"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div>
+                            <div className="text-sm font-bold text-gray-900">{product.name}</div>
+                            <div className="text-xs text-gray-500 line-clamp-1 max-w-xs">{product.description}</div>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {formatPrice(product.price)}
-                    </td>
-                    <td className="px-6 py-4">
-                      {product.is_featured ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                          <Star className="h-3 w-3 mr-1 fill-current" />
-                          Featured
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">Regular</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button
-                        onClick={() => openEditModal(product)}
-                        className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
-                      >
-                        <Edit className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => deleteProduct(product.id)}
-                        className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                      >
-                        <Trash2 className="h-5 w-5" />
-                      </button>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-gray-600">{product.category || 'Uncategorized'}</span>
+                      </td>
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                        {formatPrice(product.price)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {product.is_featured ? (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                            <Star className="h-3 w-3 mr-1 fill-current" />
+                            Featured
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">Regular</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-right space-x-2">
+                        <button
+                          onClick={() => openEditModal(product)}
+                          className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                        >
+                          <Edit className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => deleteProduct(product.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
+                      No products found matching your search.
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
@@ -362,6 +416,17 @@ export default function AdminDashboard() {
                     />
                     <span className="ml-2 text-sm font-bold text-gray-700">Feature on Homepage</span>
                   </label>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Category</label>
+                  <input
+                    required
+                    type="text"
+                    value={productForm.category}
+                    onChange={e => setProductForm({ ...productForm, category: e.target.value })}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    placeholder="e.g. Electronics, Fashion"
+                  />
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 mb-2">Image URL</label>
