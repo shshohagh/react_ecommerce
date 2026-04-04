@@ -18,6 +18,7 @@ export interface OrderHistory {
 export interface Order {
   id: number;
   customer_name: string;
+  email?: string;
   phone: string;
   address: string;
   product_id: number;

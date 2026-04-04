@@ -6,6 +6,7 @@ import fs from "fs/promises";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import knex from "knex";
+import { sendEmail, generateOrderConfirmationEmail, generateShippingUpdateEmail } from "./src/services/emailService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -94,6 +95,7 @@ async function initDb() {
       await db.schema.createTable("orders", (table) => {
         table.increments("id").primary();
         table.string("customer_name").notNullable();
+        table.string("email"); // Added for notifications
         table.string("phone").notNullable();
         table.text("address").notNullable();
         table.integer("product_id").unsigned().references("id").inTable("products");
@@ -111,6 +113,16 @@ async function initDb() {
           table.string("estimated_delivery");
         });
         console.log("estimated_delivery column added.");
+      }
+      
+      // Check if email column exists
+      const hasEmail = await db.schema.hasColumn("orders", "email");
+      if (!hasEmail) {
+        console.log("Adding email column to orders table...");
+        await db.schema.table("orders", (table) => {
+          table.string("email");
+        });
+        console.log("email column added.");
       }
     }
 
@@ -264,6 +276,19 @@ async function startServer() {
     res.json({ message: "Product deleted" });
   });
 
+  app.delete("/api/admin/products/bulk", authenticate, async (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return res.status(400).json({ error: "Invalid data format" });
+    
+    try {
+      await db("products").whereIn("id", ids).del();
+      res.json({ message: "Products deleted successfully" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete products" });
+    }
+  });
+
   app.post("/api/admin/products/bulk", authenticate, async (req, res) => {
     const products = req.body;
     if (!Array.isArray(products)) return res.status(400).json({ error: "Invalid data format" });
@@ -279,7 +304,7 @@ async function startServer() {
 
   // Orders (Public)
   app.post("/api/orders", async (req, res) => {
-    const { customer_name, phone, address, product_id } = req.body;
+    const { customer_name, email, phone, address, product_id } = req.body;
     if (!customer_name || !phone || !address || !product_id) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -288,6 +313,7 @@ async function startServer() {
 
     const [id] = await db("orders").insert({
       customer_name,
+      email,
       phone,
       address,
       product_id,
@@ -299,6 +325,21 @@ async function startServer() {
       order_id: id,
       status: "pending"
     });
+
+    // Send confirmation email if email is provided
+    if (email) {
+      try {
+        const order = await db("orders").where({ id }).first();
+        const product = await db("products").where({ id: product_id }).first();
+        const emailContent = generateOrderConfirmationEmail(order, product);
+        await sendEmail({
+          to: email,
+          ...emailContent
+        });
+      } catch (emailError) {
+        console.error("Failed to send order confirmation email:", emailError);
+      }
+    }
 
     res.status(201).json({ id });
   });
@@ -344,12 +385,28 @@ async function startServer() {
 
   app.put("/api/admin/orders/:id/status", authenticate, async (req, res) => {
     const { status } = req.body;
-    await db("orders").where({ id: req.params.id }).update({ status });
+    const orderId = req.params.id;
+    
+    await db("orders").where({ id: orderId }).update({ status });
     
     await db("order_status_history").insert({
-      order_id: req.params.id,
+      order_id: orderId,
       status
     });
+
+    // Send status update email if email is provided
+    try {
+      const order = await db("orders").where({ id: orderId }).first();
+      if (order && order.email) {
+        const emailContent = generateShippingUpdateEmail(order, status);
+        await sendEmail({
+          to: order.email,
+          ...emailContent
+        });
+      }
+    } catch (emailError) {
+      console.error("Failed to send shipping update email:", emailError);
+    }
 
     res.json({ message: "Order status updated" });
   });

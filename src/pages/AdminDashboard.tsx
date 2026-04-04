@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -153,6 +154,47 @@ export default function AdminDashboard() {
       fetchAll();
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProductIds.length === 0) return;
+    if (!confirm(`Are you sure you want to delete ${selectedProductIds.length} products?`)) return;
+
+    try {
+      const res = await fetch('/api/admin/products/bulk', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ ids: selectedProductIds })
+      });
+
+      if (res.ok) {
+        setSelectedProductIds([]);
+        fetchAll();
+      } else {
+        const err = await res.json();
+        alert(`Bulk delete failed: ${err.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred during bulk deletion.');
+    }
+  };
+
+  const toggleProductSelection = (id: number) => {
+    setSelectedProductIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAllProducts = () => {
+    if (selectedProductIds.length === filteredProducts.length) {
+      setSelectedProductIds([]);
+    } else {
+      setSelectedProductIds(filteredProducts.map(p => p.id));
     }
   };
 
@@ -468,6 +510,16 @@ export default function AdminDashboard() {
                         Import CSV
                       </button>
 
+                      {selectedProductIds.length > 0 && (
+                        <button
+                          onClick={handleBulkDelete}
+                          className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 text-sm font-bold rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Selected ({selectedProductIds.length})
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           setEditingProduct(null);
@@ -486,6 +538,14 @@ export default function AdminDashboard() {
                     <table className="w-full text-left">
                       <thead className="bg-gray-50 border-b border-gray-100">
                         <tr>
+                          <th className="px-6 py-4 w-10">
+                            <input
+                              type="checkbox"
+                              checked={selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0}
+                              onChange={toggleAllProducts}
+                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                            />
+                          </th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Category</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price</th>
@@ -496,7 +556,15 @@ export default function AdminDashboard() {
                       <tbody className="divide-y divide-gray-100">
                         {filteredProducts.length > 0 ? (
                           filteredProducts.map(product => (
-                            <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                            <tr key={product.id} className={`hover:bg-gray-50 transition-colors ${selectedProductIds.includes(product.id) ? 'bg-indigo-50/30' : ''}`}>
+                              <td className="px-6 py-4">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedProductIds.includes(product.id)}
+                                  onChange={() => toggleProductSelection(product.id)}
+                                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                />
+                              </td>
                               <td className="px-6 py-4">
                                 <div className="flex items-center">
                                   <img
@@ -545,7 +613,7 @@ export default function AdminDashboard() {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                            <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                               No products found matching your search.
                             </td>
                           </tr>

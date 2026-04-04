@@ -17,6 +17,7 @@ export default function ProductDetails() {
 
   const [formData, setFormData] = useState({
     customer_name: '',
+    email: '',
     phone: '',
     address: ''
   });
@@ -75,7 +76,7 @@ export default function ProductDetails() {
 
       const data = await res.json();
       setSuccess({ id: data.id });
-      setFormData({ customer_name: '', phone: '', address: '' });
+      setFormData({ customer_name: '', email: '', phone: '', address: '' });
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -213,6 +214,18 @@ export default function ProductDetails() {
                       onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
                       className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                       placeholder="John Doe"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Email Address</label>
+                    <input
+                      required
+                      type="email"
+                      value={formData.email}
+                      onChange={e => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                      placeholder="john@example.com"
                     />
                   </div>
 
