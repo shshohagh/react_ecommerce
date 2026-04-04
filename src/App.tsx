@@ -1,9 +1,29 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import ProductDetails from './pages/ProductDetails';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
+
+function AppContent() {
+  const location = useLocation();
+  const isAdminDashboard = location.pathname === '/admin/dashboard';
+
+  return (
+    <div className="min-h-screen bg-white flex flex-col">
+      {!isAdminDashboard && <Navbar />}
+      <main className="flex-grow">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/product/:id" element={<ProductDetails />} />
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        </Routes>
+      </main>
+      {!isAdminDashboard && <Footer />}
+    </div>
+  );
+}
 
 function Footer() {
   return (
@@ -46,18 +66,7 @@ function Footer() {
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-white flex flex-col">
-        <Navbar />
-        <main className="flex-grow">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/product/:id" element={<ProductDetails />} />
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <AppContent />
     </Router>
   );
 }

@@ -2,6 +2,7 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs/promises";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import knex from "knex";
@@ -12,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const db = knex({
   client: "sqlite3",
   connection: {
-    filename: "./data.sqlite",
+    filename: path.join(__dirname, "data.sqlite"),
   },
   useNullAsDefault: true,
 });
@@ -20,75 +21,90 @@ const db = knex({
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
 
 async function initDb() {
-  const hasUsers = await db.schema.hasTable("users");
-  if (!hasUsers) {
-    await db.schema.createTable("users", (table) => {
-      table.increments("id").primary();
-      table.string("name").notNullable();
-      table.string("email").unique().notNullable();
-      table.string("password").notNullable();
-    });
-    // Create default admin: admin@example.com / admin123
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-    await db("users").insert({
-      name: "Admin User",
-      email: "admin@example.com",
-      password: hashedPassword,
-    });
-  }
+  console.log("Initializing database...");
+  try {
+    const hasUsers = await db.schema.hasTable("users");
+    console.log("Users table exists:", hasUsers);
+    if (!hasUsers) {
+      console.log("Creating users table...");
+      await db.schema.createTable("users", (table) => {
+        table.increments("id").primary();
+        table.string("name").notNullable();
+        table.string("email").unique().notNullable();
+        table.string("password").notNullable();
+      });
+      // Create default admin: admin@example.com / admin123
+      const hashedPassword = await bcrypt.hash("admin123", 10);
+      await db("users").insert({
+        name: "Admin User",
+        email: "admin@example.com",
+        password: hashedPassword,
+      });
+      console.log("Default admin created.");
+    }
 
-  const hasProducts = await db.schema.hasTable("products");
-  if (!hasProducts) {
-    await db.schema.createTable("products", (table) => {
-      table.increments("id").primary();
-      table.string("name").notNullable();
-      table.text("description");
-      table.decimal("price", 10, 2).notNullable();
-      table.text("image"); // base64 or URL
-      table.string("category").defaultTo("Uncategorized");
-      table.boolean("is_featured").defaultTo(false);
-    });
+    const hasProducts = await db.schema.hasTable("products");
+    console.log("Products table exists:", hasProducts);
+    if (!hasProducts) {
+      console.log("Creating products table...");
+      await db.schema.createTable("products", (table) => {
+        table.increments("id").primary();
+        table.string("name").notNullable();
+        table.text("description");
+        table.decimal("price", 10, 2).notNullable();
+        table.text("image"); // base64 or URL
+        table.string("category").defaultTo("Uncategorized");
+        table.boolean("is_featured").defaultTo(false);
+      });
 
-    // Sample data
-    await db("products").insert([
-      {
-        name: "Premium Wireless Headphones",
-        description: "High-quality sound with noise cancellation technology.",
-        price: 199.99,
-        image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
-        category: "Electronics",
-        is_featured: true,
-      },
-      {
-        name: "Smart Watch Series X",
-        description: "Track your health and stay connected on the go.",
-        price: 299.00,
-        image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
-        category: "Electronics",
-        is_featured: true,
-      },
-      {
-        name: "Minimalist Leather Backpack",
-        description: "Durable and stylish for your daily commute.",
-        price: 85.50,
-        image: "https://images.unsplash.com/photo-1547949003-9792a18a2601?w=800&q=80",
-        category: "Accessories",
-        is_featured: false,
-      }
-    ]);
-  }
+      // Sample data
+      await db("products").insert([
+        {
+          name: "Premium Wireless Headphones",
+          description: "High-quality sound with noise cancellation technology.",
+          price: 199.99,
+          image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
+          category: "Electronics",
+          is_featured: true,
+        },
+        {
+          name: "Smart Watch Series X",
+          description: "Track your health and stay connected on the go.",
+          price: 299.00,
+          image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
+          category: "Electronics",
+          is_featured: true,
+        },
+        {
+          name: "Minimalist Leather Backpack",
+          description: "Durable and stylish for your daily commute.",
+          price: 85.50,
+          image: "https://images.unsplash.com/photo-1547949003-9792a18a2601?w=800&q=80",
+          category: "Accessories",
+          is_featured: false,
+        }
+      ]);
+      console.log("Sample products inserted.");
+    }
 
-  const hasOrders = await db.schema.hasTable("orders");
-  if (!hasOrders) {
-    await db.schema.createTable("orders", (table) => {
-      table.increments("id").primary();
-      table.string("customer_name").notNullable();
-      table.string("phone").notNullable();
-      table.text("address").notNullable();
-      table.integer("product_id").unsigned().references("id").inTable("products");
-      table.string("status").defaultTo("pending"); // pending, confirmed, delivered
-      table.timestamp("created_at").defaultTo(db.fn.now());
-    });
+    const hasOrders = await db.schema.hasTable("orders");
+    console.log("Orders table exists:", hasOrders);
+    if (!hasOrders) {
+      console.log("Creating orders table...");
+      await db.schema.createTable("orders", (table) => {
+        table.increments("id").primary();
+        table.string("customer_name").notNullable();
+        table.string("phone").notNullable();
+        table.text("address").notNullable();
+        table.integer("product_id").unsigned().references("id").inTable("products");
+        table.string("status").defaultTo("pending"); // pending, confirmed, delivered
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
+      console.log("Orders table created.");
+    }
+  } catch (error) {
+    console.error("Error in initDb:", error);
+    throw error;
   }
 }
 
@@ -109,6 +125,16 @@ async function startServer() {
   // Health check
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
+  });
+
+  app.get("/api/test-db", async (req, res) => {
+    try {
+      const result = await db.raw("SELECT 1+1 as result");
+      res.json({ status: "ok", result });
+    } catch (err) {
+      console.error("Database test failed:", err);
+      res.status(500).json({ status: "error", error: String(err) });
+    }
   });
 
   // Auth Middleware
@@ -171,6 +197,19 @@ async function startServer() {
     res.json({ message: "Product deleted" });
   });
 
+  app.post("/api/admin/products/bulk", authenticate, async (req, res) => {
+    const products = req.body;
+    if (!Array.isArray(products)) return res.status(400).json({ error: "Invalid data format" });
+    
+    try {
+      await db("products").insert(products);
+      res.status(201).json({ message: "Products imported successfully" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to import products" });
+    }
+  });
+
   // Orders (Public)
   app.post("/api/orders", async (req, res) => {
     const { customer_name, phone, address, product_id } = req.body;
@@ -203,11 +242,25 @@ async function startServer() {
 
   // --- Vite Middleware ---
   if (process.env.NODE_ENV !== "production") {
+    console.log("Initializing Vite middleware in development mode...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
+    console.log("Vite middleware initialized.");
+    
+    // Catch-all route for SPA in development
+    app.get("*", async (req, res, next) => {
+      try {
+        const url = req.originalUrl;
+        const template = await vite.transformIndexHtml(url, await fs.readFile(path.join(__dirname, "index.html"), "utf-8"));
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
@@ -222,4 +275,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Fatal error during server startup:", err);
+  process.exit(1);
+});
