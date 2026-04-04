@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { token, logout } = useAuth();
@@ -245,6 +246,19 @@ export default function AdminDashboard() {
   });
 
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category || 'Uncategorized')))];
+
+  const stockImages = [
+    { name: 'Electronics', url: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800&q=80' },
+    { name: 'Fashion', url: 'https://images.unsplash.com/photo-1445205170230-053b830c6050?w=800&q=80' },
+    { name: 'Home', url: 'https://images.unsplash.com/photo-1484101403633-562f891dc89a?w=800&q=80' },
+    { name: 'Accessories', url: 'https://images.unsplash.com/photo-1547949003-9792a18a2601?w=800&q=80' },
+    { name: 'Gadgets', url: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=800&q=80' },
+    { name: 'Shoes', url: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80' },
+    { name: 'Watch', url: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80' },
+    { name: 'Camera', url: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=800&q=80' },
+    { name: 'Headphones', url: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80' },
+    { name: 'Backpack', url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80' },
+  ];
 
   if (loading) {
     return (
@@ -676,20 +690,30 @@ export default function AdminDashboard() {
                         <ImageIcon className="h-12 w-12 text-gray-300" />
                       )}
                     </div>
-                    <div className="flex-grow">
-                      <label className="flex flex-col items-center justify-center px-4 py-6 border-2 border-dashed border-gray-200 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all cursor-pointer group">
-                        <Upload className="h-8 w-8 text-gray-400 group-hover:text-indigo-600 mb-2" />
-                        <span className="text-sm font-bold text-gray-500 group-hover:text-indigo-600">
-                          {productForm.image ? 'Change Image' : 'Upload Image'}
-                        </span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                          className="hidden"
-                        />
-                      </label>
-                      <p className="text-xs text-gray-400 mt-2">Recommended: Square image, max 2MB</p>
+                    <div className="flex-grow space-y-3">
+                      <div className="flex gap-3">
+                        <label className="flex-grow flex flex-col items-center justify-center px-4 py-4 border-2 border-dashed border-gray-200 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all cursor-pointer group">
+                          <Upload className="h-6 w-6 text-gray-400 group-hover:text-indigo-600 mb-1" />
+                          <span className="text-xs font-bold text-gray-500 group-hover:text-indigo-600">
+                            {productForm.image ? 'Change' : 'Upload'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsLibraryOpen(true)}
+                          className="flex-grow flex flex-col items-center justify-center px-4 py-4 border-2 border-gray-100 rounded-2xl hover:border-indigo-500 hover:bg-indigo-50 transition-all group"
+                        >
+                          <ImageIcon className="h-6 w-6 text-gray-400 group-hover:text-indigo-600 mb-1" />
+                          <span className="text-xs font-bold text-gray-500 group-hover:text-indigo-600">Library</span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-400">Recommended: Square image, max 2MB</p>
                     </div>
                   </div>
                 </div>
@@ -720,6 +744,56 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Image Library Modal */}
+      {isLibraryOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">Stock Image Library</h3>
+              <button onClick={() => setIsLibraryOpen(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[60vh] overflow-y-auto pr-2">
+                {stockImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setProductForm({ ...productForm, image: img.url });
+                      setIsLibraryOpen(false);
+                    }}
+                    className="group relative aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-indigo-600 transition-all"
+                  >
+                    <img 
+                      src={img.url} 
+                      alt={img.name} 
+                      className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-white text-xs font-bold px-2 py-1 bg-indigo-600 rounded-lg">Select</span>
+                    </div>
+                    <div className="absolute bottom-0 inset-x-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
+                      <p className="text-[10px] font-bold text-white truncate">{img.name}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="flex justify-end mt-8">
+                <button
+                  type="button"
+                  onClick={() => setIsLibraryOpen(false)}
+                  className="px-6 py-2 text-sm font-bold text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
