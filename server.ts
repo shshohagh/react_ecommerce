@@ -102,6 +102,16 @@ async function initDb() {
         table.timestamp("created_at").defaultTo(db.fn.now());
       });
       console.log("Orders table created.");
+    } else {
+      // Check if estimated_delivery column exists
+      const hasEstimatedDelivery = await db.schema.hasColumn("orders", "estimated_delivery");
+      if (!hasEstimatedDelivery) {
+        console.log("Adding estimated_delivery column to orders table...");
+        await db.schema.table("orders", (table) => {
+          table.string("estimated_delivery");
+        });
+        console.log("estimated_delivery column added.");
+      }
     }
 
     const hasReviews = await db.schema.hasTable("reviews");
@@ -117,6 +127,16 @@ async function initDb() {
         table.timestamp("created_at").defaultTo(db.fn.now());
       });
       console.log("Reviews table created.");
+    }
+
+    const hasHistory = await db.schema.hasTable("order_status_history");
+    if (!hasHistory) {
+      await db.schema.createTable("order_status_history", (table) => {
+        table.increments("id").primary();
+        table.integer("order_id").unsigned().references("id").inTable("orders").onDelete("CASCADE");
+        table.string("status").notNullable();
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
     }
   } catch (error) {
     console.error("Error in initDb:", error);
@@ -274,6 +294,12 @@ async function startServer() {
       status: "pending",
       estimated_delivery: estimated_delivery.toISOString()
     });
+
+    await db("order_status_history").insert({
+      order_id: id,
+      status: "pending"
+    });
+
     res.status(201).json({ id });
   });
 
@@ -285,7 +311,12 @@ async function startServer() {
       .first();
     
     if (!order) return res.status(404).json({ error: "Order not found" });
-    res.json(order);
+
+    const history = await db("order_status_history")
+      .where({ order_id: req.params.id })
+      .orderBy("created_at", "desc");
+
+    res.json({ ...order, history });
   });
 
   // Orders (Admin)
@@ -299,6 +330,12 @@ async function startServer() {
   app.put("/api/admin/orders/:id/status", authenticate, async (req, res) => {
     const { status } = req.body;
     await db("orders").where({ id: req.params.id }).update({ status });
+    
+    await db("order_status_history").insert({
+      order_id: req.params.id,
+      status
+    });
+
     res.json({ message: "Order status updated" });
   });
 

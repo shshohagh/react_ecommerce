@@ -8,6 +8,13 @@ export interface Product {
   is_featured: boolean;
 }
 
+export interface OrderHistory {
+  id: number;
+  order_id: number;
+  status: 'pending' | 'confirmed' | 'delivered';
+  created_at: string;
+}
+
 export interface Order {
   id: number;
   customer_name: string;
@@ -19,6 +26,7 @@ export interface Order {
   status: 'pending' | 'confirmed' | 'delivered';
   estimated_delivery?: string;
   created_at: string;
+  history?: OrderHistory[];
 }
 
 export interface User {

@@ -218,21 +218,28 @@ export default function OrderTracking() {
           <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
             <h2 className="text-xl font-bold text-gray-900 mb-6">Shipping Updates</h2>
             <div className="space-y-6">
-              {steps.slice(0, activeIndex + 1).reverse().map((step, i) => (
-                <div key={i} className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="h-3 w-3 rounded-full bg-indigo-600 mt-1.5"></div>
-                    {i !== activeIndex && <div className="w-0.5 h-full bg-gray-100 mt-1"></div>}
-                  </div>
-                  <div>
-                    <p className="font-bold text-gray-900">{step.label}</p>
-                    <p className="text-sm text-gray-500">{step.description}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      {i === 0 ? 'Just now' : 'Earlier'}
-                    </p>
-                  </div>
-                </div>
-              ))}
+              {order.history && order.history.length > 0 ? (
+                order.history.map((item, i) => {
+                  const step = steps.find(s => s.id === item.status);
+                  return (
+                    <div key={i} className="flex gap-4">
+                      <div className="flex flex-col items-center">
+                        <div className="h-3 w-3 rounded-full bg-indigo-600 mt-1.5"></div>
+                        {i !== order.history!.length - 1 && <div className="w-0.5 h-full bg-gray-100 mt-1"></div>}
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-900">{step?.label || item.status.toUpperCase()}</p>
+                        <p className="text-sm text-gray-500">{step?.description || 'Status updated'}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(item.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-gray-500 text-sm">No updates available yet.</p>
+              )}
             </div>
           </div>
         </div>
