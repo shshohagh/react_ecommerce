@@ -354,6 +354,31 @@ async function startServer() {
     res.json({ message: "Order status updated" });
   });
 
+  // Reviews
+  app.get("/api/products/:id/reviews", async (req, res) => {
+    const reviews = await db("reviews")
+      .where({ product_id: req.params.id })
+      .orderBy("created_at", "desc");
+    res.json(reviews);
+  });
+
+  app.post("/api/products/:id/reviews", async (req, res) => {
+    const { customer_name, rating, comment } = req.body;
+    if (!customer_name || !rating || !comment) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const [id] = await db("reviews").insert({
+      product_id: req.params.id,
+      customer_name,
+      rating,
+      comment
+    });
+
+    const newReview = await db("reviews").where({ id }).first();
+    res.status(201).json(newReview);
+  });
+
   // --- Vite Middleware ---
   if (process.env.NODE_ENV !== "production") {
     console.log("Initializing Vite middleware in development mode...");
