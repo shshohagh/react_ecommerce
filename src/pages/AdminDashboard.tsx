@@ -302,6 +302,14 @@ export default function AdminDashboard() {
     { name: 'Backpack', url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=800&q=80' },
   ];
 
+  const totalRevenue = orders
+    .filter(o => o.status === 'delivered')
+    .reduce((acc, o) => acc + (o.product_price || 0), 0);
+
+  const recentOrders = [...orders]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -314,73 +322,84 @@ export default function AdminDashboard() {
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
       <aside 
-        className={`fixed inset-y-0 left-0 z-40 bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${
-          isSidebarOpen ? 'w-64' : 'w-20'
+        className={`fixed inset-y-0 left-0 z-40 bg-white border-r border-gray-200 transition-all duration-300 ease-in-out shadow-sm ${
+          isSidebarOpen ? 'w-72' : 'w-20'
         }`}
       >
         <div className="flex flex-col h-full">
           {/* Sidebar Header */}
-          <div className="p-6 flex items-center justify-between">
+          <div className="h-20 px-6 flex items-center justify-between border-b border-gray-50">
             {isSidebarOpen && (
-              <span className="text-xl font-bold text-gray-900 tracking-tight">SwiftCart Admin</span>
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center gap-3"
+              >
+                <div className="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                  <Package className="h-6 w-6 text-white" />
+                </div>
+                <span className="text-xl font-bold text-gray-900 tracking-tight">SwiftCart</span>
+              </motion.div>
             )}
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+              className={`p-2 rounded-xl hover:bg-gray-100 text-gray-500 transition-colors ${!isSidebarOpen ? 'mx-auto' : ''}`}
             >
               <Menu className="h-5 w-5" />
             </button>
           </div>
 
           {/* Sidebar Nav */}
-          <nav className="flex-grow px-4 space-y-2 mt-4">
-            <button
+          <div className="flex-grow py-8 px-4 space-y-1 overflow-y-auto">
+            <div className={`px-4 mb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest ${!isSidebarOpen ? 'text-center' : ''}`}>
+              {isSidebarOpen ? 'Main Menu' : '•••'}
+            </div>
+            
+            <SidebarItem 
+              active={activeTab === 'dashboard'} 
               onClick={() => setActiveTab('dashboard')}
-              className={`w-full flex items-center p-3 rounded-xl transition-all ${
-                activeTab === 'dashboard' 
-                  ? 'bg-indigo-50 text-indigo-600' 
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <LayoutDashboard className={`h-5 w-5 ${isSidebarOpen ? 'mr-3' : 'mx-auto'}`} />
-              {isSidebarOpen && <span className="font-bold">Dashboard</span>}
-              {isSidebarOpen && activeTab === 'dashboard' && <ChevronRight className="ml-auto h-4 w-4" />}
-            </button>
-
-            <button
+              icon={<LayoutDashboard className="h-5 w-5" />}
+              label="Dashboard"
+              isOpen={isSidebarOpen}
+            />
+            
+            <SidebarItem 
+              active={activeTab === 'products'} 
               onClick={() => setActiveTab('products')}
-              className={`w-full flex items-center p-3 rounded-xl transition-all ${
-                activeTab === 'products' 
-                  ? 'bg-indigo-50 text-indigo-600' 
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <Package className={`h-5 w-5 ${isSidebarOpen ? 'mr-3' : 'mx-auto'}`} />
-              {isSidebarOpen && <span className="font-bold">Products</span>}
-              {isSidebarOpen && activeTab === 'products' && <ChevronRight className="ml-auto h-4 w-4" />}
-            </button>
-
-            <button
+              icon={<Package className="h-5 w-5" />}
+              label="Products"
+              isOpen={isSidebarOpen}
+            />
+            
+            <SidebarItem 
+              active={activeTab === 'orders'} 
               onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center p-3 rounded-xl transition-all ${
-                activeTab === 'orders' 
-                  ? 'bg-indigo-50 text-indigo-600' 
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              }`}
-            >
-              <ClipboardList className={`h-5 w-5 ${isSidebarOpen ? 'mr-3' : 'mx-auto'}`} />
-              {isSidebarOpen && <span className="font-bold">Orders</span>}
-              {isSidebarOpen && activeTab === 'orders' && <ChevronRight className="ml-auto h-4 w-4" />}
-            </button>
-          </nav>
+              icon={<ClipboardList className="h-5 w-5" />}
+              label="Orders"
+              isOpen={isSidebarOpen}
+            />
+
+            <div className={`px-4 mt-8 mb-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest ${!isSidebarOpen ? 'text-center' : ''}`}>
+              {isSidebarOpen ? 'System' : '•••'}
+            </div>
+
+            <SidebarItem 
+              active={false} 
+              onClick={() => {}}
+              icon={<Star className="h-5 w-5" />}
+              label="Reviews"
+              isOpen={isSidebarOpen}
+              disabled
+            />
+          </div>
 
           {/* Sidebar Footer */}
           <div className="p-4 border-t border-gray-100">
             <button
               onClick={handleLogout}
-              className="w-full flex items-center p-3 rounded-xl text-red-500 hover:bg-red-50 transition-all"
+              className={`w-full flex items-center p-3 rounded-xl text-red-500 hover:bg-red-50 transition-all group ${!isSidebarOpen ? 'justify-center' : ''}`}
             >
-              <LogOut className={`h-5 w-5 ${isSidebarOpen ? 'mr-3' : 'mx-auto'}`} />
+              <LogOut className={`h-5 w-5 ${isSidebarOpen ? 'mr-3' : ''} group-hover:scale-110 transition-transform`} />
               {isSidebarOpen && <span className="font-bold">Logout</span>}
             </button>
           </div>
@@ -388,38 +407,22 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className={`flex-grow transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
-        <div className="p-8 lg:p-12">
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                {activeTab === 'dashboard' ? (
-                  <>
-                    <LayoutDashboard className="mr-3 h-8 w-8 text-indigo-600" />
-                    Dashboard Overview
-                  </>
-                ) : activeTab === 'products' ? (
-                  <>
-                    <Package className="mr-3 h-8 w-8 text-indigo-600" />
-                    Products Management
-                  </>
-                ) : (
-                  <>
-                    <ClipboardList className="mr-3 h-8 w-8 text-indigo-600" />
-                    Order Management
-                  </>
-                )}
-              </h1>
-              <p className="text-gray-500 mt-1">
-                {activeTab === 'dashboard'
-                  ? 'Overview of your store performance and statistics.'
-                  : activeTab === 'products' 
-                  ? 'Manage your store inventory and product details.' 
-                  : 'Track and update customer orders.'}
-              </p>
+      <main className={`flex-grow transition-all duration-300 ${isSidebarOpen ? 'ml-72' : 'ml-20'}`}>
+        {/* Top Header */}
+        <header className="h-20 bg-white border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-bold text-gray-900">
+              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+            </h2>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm">
+              AD
             </div>
           </div>
+        </header>
 
+        <div className="p-8 lg:p-12 max-w-7xl mx-auto">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -428,105 +431,138 @@ export default function AdminDashboard() {
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' ? (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-indigo-50 rounded-xl">
-                        <Package className="h-6 w-6 text-indigo-600" />
-                      </div>
-                      <span className="text-xs font-bold text-green-500 bg-green-50 px-2 py-1 rounded-lg">Active</span>
-                    </div>
-                    <h3 className="text-gray-500 text-sm font-medium">Total Products</h3>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{products.length}</p>
+              {activeTab === 'dashboard' && (
+                <div className="space-y-10">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <StatCard 
+                      title="Total Revenue" 
+                      value={formatPrice(totalRevenue)} 
+                      icon={<Truck className="h-6 w-6 text-green-600" />}
+                      trend="+12.5%"
+                      color="green"
+                    />
+                    <StatCard 
+                      title="Total Orders" 
+                      value={orders.length.toString()} 
+                      icon={<ClipboardList className="h-6 w-6 text-blue-600" />}
+                      trend="+5.2%"
+                      color="blue"
+                    />
+                    <StatCard 
+                      title="Total Products" 
+                      value={products.length.toString()} 
+                      icon={<Package className="h-6 w-6 text-indigo-600" />}
+                      trend="+2 new"
+                      color="indigo"
+                    />
+                    <StatCard 
+                      title="Featured Items" 
+                      value={products.filter(p => p.is_featured).length.toString()} 
+                      icon={<Star className="h-6 w-6 text-amber-600" />}
+                      trend="Stable"
+                      color="amber"
+                    />
                   </div>
 
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-blue-50 rounded-xl">
-                        <ClipboardList className="h-6 w-6 text-blue-600" />
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Recent Orders */}
+                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                      <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                        <h3 className="font-bold text-gray-900">Recent Orders</h3>
+                        <button 
+                          onClick={() => setActiveTab('orders')}
+                          className="text-sm font-bold text-indigo-600 hover:text-indigo-700"
+                        >
+                          View All
+                        </button>
                       </div>
-                      <span className="text-xs font-bold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg">Orders</span>
+                      <div className="divide-y divide-gray-50">
+                        {recentOrders.map(order => (
+                          <div key={order.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold">
+                                {order.customer_name.charAt(0)}
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{order.customer_name}</p>
+                                <p className="text-xs text-gray-500">{order.product_name}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-gray-900">{formatPrice(order.product_price || 0)}</p>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                order.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                                'bg-green-100 text-green-700'
+                              }`}>
+                                {order.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium">Total Orders</h3>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">{orders.length}</p>
-                  </div>
 
-                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="p-3 bg-green-50 rounded-xl">
-                        <Star className="h-6 w-6 text-green-600" />
+                    {/* Top Categories */}
+                    <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
+                      <h3 className="font-bold text-gray-900 mb-6">Inventory by Category</h3>
+                      <div className="space-y-4">
+                        {categories.filter(c => c !== 'All').map(cat => {
+                          const count = products.filter(p => p.category === cat).length;
+                          const percentage = (count / products.length) * 100;
+                          return (
+                            <div key={cat} className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span className="font-medium text-gray-700">{cat}</span>
+                                <span className="text-gray-500">{count} items</span>
+                              </div>
+                              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-indigo-600 rounded-full" 
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <span className="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">Featured</span>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium">Featured Products</h3>
-                    <p className="text-3xl font-bold text-gray-900 mt-1">
-                      {products.filter(p => p.is_featured).length}
-                    </p>
                   </div>
                 </div>
-              ) : activeTab === 'products' ? (
+              )}
+
+              {activeTab === 'products' && (
                 <div className="space-y-6">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <h2 className="text-xl font-bold text-gray-900">Inventory ({filteredProducts.length})</h2>
-                    
-                    <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                      <div className="relative flex-grow sm:w-48">
-                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <select
-                          value={categoryFilter}
-                          onChange={(e) => setCategoryFilter(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all appearance-none bg-white"
-                        >
-                          {categories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="relative flex-grow sm:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <input
-                          type="text"
-                          placeholder="Search products..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm transition-all"
-                        />
-                      </div>
-                      
-                      <input
-                        type="file"
-                        accept=".csv"
-                        ref={fileInputRef}
-                        onChange={handleCsvImport}
-                        className="hidden"
-                      />
-
+                  {/* Products Header */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">Products Catalog</h2>
+                      <p className="text-gray-500 text-sm">Manage your inventory and product listings.</p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
                       <button
                         onClick={() => fileInputRef.current?.click()}
-                        className="inline-flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+                        className="inline-flex items-center px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-50 transition-colors"
                       >
+                        <Upload className="mr-2 h-4 w-4" />
                         Import CSV
                       </button>
-
                       {selectedProductIds.length > 0 && (
                         <button
                           onClick={handleBulkDelete}
-                          className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 text-sm font-bold rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
+                          className="inline-flex items-center px-4 py-2 bg-red-50 text-red-600 text-sm font-bold rounded-xl hover:bg-red-100 transition-colors"
                         >
                           <Trash2 className="mr-2 h-4 w-4" />
-                          Delete Selected ({selectedProductIds.length})
+                          Delete ({selectedProductIds.length})
                         </button>
                       )}
-
                       <button
                         onClick={() => {
                           setEditingProduct(null);
                           setProductForm({ name: '', description: '', price: '', image: '', category: 'Uncategorized', is_featured: false });
                           setIsModalOpen(true);
                         }}
-                        className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
+                        className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25"
                       >
                         <Plus className="mr-2 h-4 w-4" />
                         Add Product
@@ -534,150 +570,215 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <table className="w-full text-left">
-                      <thead className="bg-gray-50 border-b border-gray-100">
-                        <tr>
-                          <th className="px-6 py-4 w-10">
-                            <input
-                              type="checkbox"
-                              checked={selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0}
-                              onChange={toggleAllProducts}
-                              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                            />
-                          </th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Price</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {filteredProducts.length > 0 ? (
-                          filteredProducts.map(product => (
-                            <tr key={product.id} className={`hover:bg-gray-50 transition-colors ${selectedProductIds.includes(product.id) ? 'bg-indigo-50/30' : ''}`}>
-                              <td className="px-6 py-4">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedProductIds.includes(product.id)}
-                                  onChange={() => toggleProductSelection(product.id)}
-                                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                                />
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center">
-                                  <img
-                                    src={product.image}
-                                    alt=""
-                                    className="h-10 w-10 rounded-lg object-cover mr-3"
-                                    referrerPolicy="no-referrer"
+                  {/* Filters */}
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <div className="relative flex-grow">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search by name or description..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
+                      />
+                    </div>
+                    <div className="relative w-full md:w-64">
+                      <Filter className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <select
+                        value={categoryFilter}
+                        onChange={(e) => setCategoryFilter(e.target.value)}
+                        className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all appearance-none bg-white font-medium text-gray-700"
+                      >
+                        {categories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Products Table */}
+                  <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-50/50 border-b border-gray-100">
+                          <tr>
+                            <th className="px-6 py-4 w-10">
+                              <input
+                                type="checkbox"
+                                checked={selectedProductIds.length === filteredProducts.length && filteredProducts.length > 0}
+                                onChange={toggleAllProducts}
+                                className="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded-lg cursor-pointer"
+                              />
+                            </th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Product</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Category</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Price</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {filteredProducts.length > 0 ? (
+                            filteredProducts.map(product => (
+                              <tr key={product.id} className={`group hover:bg-gray-50/50 transition-colors ${selectedProductIds.includes(product.id) ? 'bg-indigo-50/30' : ''}`}>
+                                <td className="px-6 py-4">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedProductIds.includes(product.id)}
+                                    onChange={() => toggleProductSelection(product.id)}
+                                    className="h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded-lg cursor-pointer"
                                   />
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-4">
+                                    <div className="h-14 w-14 rounded-2xl overflow-hidden bg-gray-100 flex-shrink-0 border border-gray-100">
+                                      <img
+                                        src={product.image}
+                                        alt=""
+                                        className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-bold text-gray-900">{product.name}</div>
+                                      <div className="text-xs text-gray-400 line-clamp-1 max-w-xs">{product.description}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
+                                    {product.category || 'Uncategorized'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-sm font-bold text-gray-900">
+                                  {formatPrice(product.price)}
+                                </td>
+                                <td className="px-6 py-4">
+                                  {product.is_featured ? (
+                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-100">
+                                      <Star className="h-3 w-3 mr-1.5 fill-current" />
+                                      Featured
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs font-bold text-gray-300">Regular</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      onClick={() => openEditModal(product)}
+                                      className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                      title="Edit Product"
+                                    >
+                                      <Edit className="h-5 w-5" />
+                                    </button>
+                                    <button
+                                      onClick={() => deleteProduct(product.id)}
+                                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                      title="Delete Product"
+                                    >
+                                      <Trash2 className="h-5 w-5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-20 text-center">
+                                <div className="max-w-xs mx-auto">
+                                  <Search className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+                                  <h3 className="text-lg font-bold text-gray-900">No products found</h3>
+                                  <p className="text-gray-500 text-sm">Try adjusting your search or category filter.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'orders' && (
+                <div className="space-y-6">
+                  {/* Orders Header */}
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">Order Management</h2>
+                      <p className="text-gray-500 text-sm">Track shipments and update delivery statuses.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="px-4 py-2 bg-indigo-50 rounded-xl text-indigo-600 text-sm font-bold">
+                        {orders.length} Total Orders
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Orders Table */}
+                  <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-50/50 border-b border-gray-100">
+                          <tr>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Customer</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Product</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Est. Delivery</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Update Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {orders.map(order => (
+                            <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                                    {order.customer_name.charAt(0)}
+                                  </div>
                                   <div>
-                                    <div className="text-sm font-bold text-gray-900">{product.name}</div>
-                                    <div className="text-xs text-gray-500 line-clamp-1 max-w-xs">{product.description}</div>
+                                    <div className="text-sm font-bold text-gray-900">{order.customer_name}</div>
+                                    <div className="text-xs text-gray-500">{order.email || order.phone}</div>
                                   </div>
                                 </div>
                               </td>
                               <td className="px-6 py-4">
-                                <span className="text-sm text-gray-600">{product.category || 'Uncategorized'}</span>
-                              </td>
-                              <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                                {formatPrice(product.price)}
+                                <div className="text-sm font-bold text-gray-900">{order.product_name}</div>
+                                <div className="text-xs font-bold text-indigo-600">{formatPrice(order.product_price || 0)}</div>
                               </td>
                               <td className="px-6 py-4">
-                                {product.is_featured ? (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                    <Star className="h-3 w-3 mr-1 fill-current" />
-                                    Featured
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-gray-400">Regular</span>
-                                )}
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${
+                                  order.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                  order.status === 'confirmed' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                  'bg-green-50 text-green-700 border-green-100'
+                                }`}>
+                                  {order.status === 'pending' && <Clock className="h-3 w-3 mr-1.5" />}
+                                  {order.status === 'confirmed' && <CheckCircle className="h-3 w-3 mr-1.5" />}
+                                  {order.status === 'delivered' && <Truck className="h-3 w-3 mr-1.5" />}
+                                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                </span>
                               </td>
-                              <td className="px-6 py-4 text-right space-x-2">
-                                <button
-                                  onClick={() => openEditModal(product)}
-                                  className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                              <td className="px-6 py-4 text-sm font-medium text-gray-600">
+                                {order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <select
+                                  value={order.status}
+                                  onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                                  className="text-sm font-bold text-gray-700 bg-gray-50 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none px-3 py-2 transition-all cursor-pointer"
                                 >
-                                  <Edit className="h-5 w-5" />
-                                </button>
-                                <button
-                                  onClick={() => deleteProduct(product.id)}
-                                  className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                                >
-                                  <Trash2 className="h-5 w-5" />
-                                </button>
+                                  <option value="pending">Pending</option>
+                                  <option value="confirmed">Confirmed</option>
+                                  <option value="shipped">Shipped</option>
+                                  <option value="delivered">Delivered</option>
+                                </select>
                               </td>
                             </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
-                              No products found matching your search.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-bold text-gray-900">Recent Orders ({orders.length})</h2>
-                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                    <table className="w-full text-left">
-                      <thead className="bg-gray-50 border-b border-gray-100">
-                        <tr>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Customer</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Est. Delivery</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Update Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {orders.map(order => (
-                          <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="text-sm font-bold text-gray-900">{order.customer_name}</div>
-                              <div className="text-xs text-gray-500">{order.phone}</div>
-                              <div className="text-xs text-gray-400 mt-1">{order.address}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-sm font-medium text-gray-900">{order.product_name}</div>
-                              <div className="text-xs text-indigo-600">{formatPrice(order.product_price || 0)}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                order.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                                order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                                'bg-green-100 text-green-800'
-                              }`}>
-                                {order.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-                                {order.status === 'confirmed' && <CheckCircle className="h-3 w-3 mr-1" />}
-                                {order.status === 'delivered' && <Truck className="h-3 w-3 mr-1" />}
-                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm text-gray-600">
-                              {order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <select
-                                value={order.status}
-                                onChange={(e) => updateOrderStatus(order.id, e.target.value)}
-                                className="text-sm border-gray-200 rounded-lg focus:ring-indigo-500 focus:border-indigo-500"
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
-                                <option value="delivered">Delivered</option>
-                              </select>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -865,6 +966,75 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SidebarItem({ active, onClick, icon, label, isOpen, disabled = false }: { 
+  active: boolean, 
+  onClick: () => void, 
+  icon: React.ReactNode, 
+  label: string, 
+  isOpen: boolean,
+  disabled?: boolean
+}) {
+  return (
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      className={`w-full flex items-center p-3 rounded-xl transition-all group relative ${
+        active 
+          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' 
+          : disabled 
+            ? 'opacity-40 cursor-not-allowed text-gray-400'
+            : 'text-gray-500 hover:bg-gray-50 hover:text-indigo-600'
+      }`}
+    >
+      <div className={`${isOpen ? 'mr-3' : 'mx-auto'} transition-all group-hover:scale-110`}>
+        {icon}
+      </div>
+      {isOpen && <span className="font-bold text-sm">{label}</span>}
+      {isOpen && active && (
+        <motion.div 
+          layoutId="active-pill"
+          className="ml-auto h-1.5 w-1.5 rounded-full bg-white" 
+        />
+      )}
+      {!isOpen && active && (
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-l-full" />
+      )}
+    </button>
+  );
+}
+
+function StatCard({ title, value, icon, trend, color }: { 
+  title: string, 
+  value: string, 
+  icon: React.ReactNode, 
+  trend: string,
+  color: 'green' | 'blue' | 'indigo' | 'amber'
+}) {
+  const colors = {
+    green: 'bg-green-50 text-green-600',
+    blue: 'bg-blue-50 text-blue-600',
+    indigo: 'bg-indigo-50 text-indigo-600',
+    amber: 'bg-amber-50 text-amber-600'
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-2xl ${colors[color]}`}>
+          {icon}
+        </div>
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-lg ${
+          trend.startsWith('+') ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500'
+        }`}>
+          {trend}
+        </span>
+      </div>
+      <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider">{title}</h3>
+      <p className="text-3xl font-black text-gray-900 mt-1">{value}</p>
     </div>
   );
 }

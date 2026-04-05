@@ -11,7 +11,8 @@ export interface Product {
 export interface OrderHistory {
   id: number;
   order_id: number;
-  status: 'pending' | 'confirmed' | 'delivered';
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
+  description?: string;
   created_at: string;
 }
 
@@ -24,7 +25,7 @@ export interface Order {
   product_id: number;
   product_name?: string;
   product_price?: number;
-  status: 'pending' | 'confirmed' | 'delivered';
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
   estimated_delivery?: string;
   created_at: string;
   history?: OrderHistory[];

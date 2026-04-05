@@ -202,7 +202,7 @@ export default function OrderTracking() {
   // If status is 'confirmed', we show it as the second step.
   // If status is 'delivered', we show all steps as completed.
   // We'll assume a linear progression for simplicity.
-  const activeIndex = order.status === 'pending' ? 0 : order.status === 'confirmed' ? 1 : order.status === 'delivered' ? 3 : 1;
+  const activeIndex = order.status === 'pending' ? 0 : order.status === 'confirmed' ? 1 : order.status === 'shipped' ? 2 : order.status === 'delivered' ? 3 : 0;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -312,22 +312,36 @@ export default function OrderTracking() {
           </div>
 
           <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Shipping Updates</h2>
-            <div className="space-y-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-6">Order History</h2>
+            <div className="space-y-8">
               {order.history && order.history.length > 0 ? (
                 order.history.map((item, i) => {
                   const step = steps.find(s => s.id === item.status);
+                  const Icon = step?.icon || Clock;
                   return (
-                    <div key={i} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div className="h-3 w-3 rounded-full bg-indigo-600 mt-1.5"></div>
-                        {i !== order.history!.length - 1 && <div className="w-0.5 h-full bg-gray-100 mt-1"></div>}
+                    <div key={i} className="flex gap-6 relative">
+                      {i !== order.history!.length - 1 && (
+                        <div className="absolute left-5 top-10 bottom-[-32px] w-0.5 bg-gray-100"></div>
+                      )}
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 z-10 ${
+                        i === 0 ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        <Icon className="h-5 w-5" />
                       </div>
-                      <div>
-                        <p className="font-bold text-gray-900">{step?.label || item.status.toUpperCase()}</p>
-                        <p className="text-sm text-gray-500">{step?.description || 'Status updated'}</p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(item.created_at).toLocaleString()}
+                      <div className="flex-grow pb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
+                          <p className={`font-bold ${i === 0 ? 'text-gray-900' : 'text-gray-500'}`}>
+                            {step?.label || item.status.toUpperCase()}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {new Date(item.created_at).toLocaleString(undefined, {
+                              dateStyle: 'medium',
+                              timeStyle: 'short'
+                            })}
+                          </p>
+                        </div>
+                        <p className={`text-sm ${i === 0 ? 'text-gray-600' : 'text-gray-400'}`}>
+                          {item.description || step?.description || 'Status updated'}
                         </p>
                       </div>
                     </div>

@@ -147,8 +147,16 @@ async function initDb() {
         table.increments("id").primary();
         table.integer("order_id").unsigned().references("id").inTable("orders").onDelete("CASCADE");
         table.string("status").notNullable();
+        table.text("description");
         table.timestamp("created_at").defaultTo(db.fn.now());
       });
+    } else {
+      const hasDescription = await db.schema.hasColumn("order_status_history", "description");
+      if (!hasDescription) {
+        await db.schema.table("order_status_history", (table) => {
+          table.text("description");
+        });
+      }
     }
   } catch (error) {
     console.error("Error in initDb:", error);
@@ -323,7 +331,8 @@ async function startServer() {
 
     await db("order_status_history").insert({
       order_id: id,
-      status: "pending"
+      status: "pending",
+      description: "Order has been placed and is awaiting confirmation."
     });
 
     // Send confirmation email if email is provided
@@ -384,14 +393,22 @@ async function startServer() {
   });
 
   app.put("/api/admin/orders/:id/status", authenticate, async (req, res) => {
-    const { status } = req.body;
+    const { status, description } = req.body;
     const orderId = req.params.id;
     
+    const statusDescriptions: Record<string, string> = {
+      pending: "Order has been placed and is awaiting confirmation.",
+      confirmed: "Order has been confirmed and is being prepared for shipment.",
+      shipped: "Order has been shipped and is on its way to you.",
+      delivered: "Order has been successfully delivered."
+    };
+
     await db("orders").where({ id: orderId }).update({ status });
     
     await db("order_status_history").insert({
       order_id: orderId,
-      status
+      status,
+      description: description || statusDescriptions[status] || `Order status updated to ${status}`
     });
 
     // Send status update email if email is provided
