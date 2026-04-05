@@ -23,6 +23,13 @@ export interface Attribute {
   created_at: string;
 }
 
+export interface AttributeValue {
+  id: number;
+  attribute_id: number;
+  value: string;
+  created_at: string;
+}
+
 export interface OrderHistory {
   id: number;
   order_id: number;

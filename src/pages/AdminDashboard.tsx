@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
-import { Product, Order, Review, Category, Brand, Attribute } from '../types';
+import { Product, Order, Review, Category, Brand, Attribute, AttributeValue } from '../types';
 import { formatPrice } from '../lib/utils';
 import {
   Plus,
@@ -43,12 +43,14 @@ export default function AdminDashboard() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
+  const [attributeValues, setAttributeValues] = useState<AttributeValue[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
+  const [isAttributeValueModalOpen, setIsAttributeValueModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
@@ -91,10 +93,15 @@ export default function AdminDashboard() {
     slug: ''
   });
 
+  const [attributeValueForm, setAttributeValueForm] = useState({
+    attribute_id: 0,
+    value: ''
+  });
+
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, reviewRes, fileRes, catRes, brandRes, attrRes] = await Promise.all([
+      const [prodRes, orderRes, reviewRes, fileRes, catRes, brandRes, attrRes, attrValRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/admin/orders', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -113,10 +120,13 @@ export default function AdminDashboard() {
         }),
         fetch('/api/admin/attributes', {
           headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('/api/admin/attribute-values', {
+          headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
 
-      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401 || catRes.status === 401 || brandRes.status === 401 || attrRes.status === 401) {
+      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401 || catRes.status === 401 || brandRes.status === 401 || attrRes.status === 401 || attrValRes.status === 401) {
         logout();
         navigate('/admin/login');
         return;
@@ -129,6 +139,7 @@ export default function AdminDashboard() {
       const catData = await catRes.json();
       const brandData = await brandRes.json();
       const attrData = await attrRes.json();
+      const attrValData = await attrValRes.json();
 
       setProducts(prodData);
       setOrders(orderData);
@@ -137,6 +148,7 @@ export default function AdminDashboard() {
       setCategories(catData);
       setBrands(brandData);
       setAttributes(attrData);
+      setAttributeValues(attrValData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -263,6 +275,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteAttributeValue = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this value?')) return;
+    try {
+      const res = await fetch(`/api/admin/attribute-values/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const openCategoryModal = (category: Category | null = null) => {
     if (category) {
       setEditingCategory(category);
@@ -312,6 +339,14 @@ export default function AdminDashboard() {
       });
     }
     setIsAttributeModalOpen(true);
+  };
+
+  const openAttributeValueModal = (attributeId: number) => {
+    setAttributeValueForm({
+      attribute_id: attributeId,
+      value: ''
+    });
+    setIsAttributeValueModalOpen(true);
   };
 
   const handleCategorySubmit = async (e: React.FormEvent) => {
@@ -379,6 +414,27 @@ export default function AdminDashboard() {
 
       if (res.ok) {
         setIsAttributeModalOpen(false);
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAttributeValueSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await fetch('/api/admin/attribute-values', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(attributeValueForm)
+      });
+
+      if (res.ok) {
+        setIsAttributeValueModalOpen(false);
         fetchAll();
       }
     } catch (err) {
@@ -1518,6 +1574,7 @@ export default function AdminDashboard() {
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Name</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Slug</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Created At</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Items</th>
                                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
                               </tr>
                             </thead>
@@ -1532,6 +1589,30 @@ export default function AdminDashboard() {
                                   </td>
                                   <td className="px-6 py-4 text-sm text-gray-500">
                                     {new Date(attr.created_at).toLocaleDateString()}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-wrap gap-2 items-center">
+                                      {attributeValues
+                                        .filter(v => v.attribute_id === attr.id)
+                                        .map(v => (
+                                          <span key={v.id} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-lg group">
+                                            {v.value}
+                                            <button 
+                                              onClick={() => deleteAttributeValue(v.id)}
+                                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+                                            >
+                                              <X className="h-3 w-3" />
+                                            </button>
+                                          </span>
+                                        ))}
+                                      <button
+                                        onClick={() => openAttributeValueModal(attr.id)}
+                                        className="inline-flex items-center px-2 py-1 border border-dashed border-gray-300 text-gray-400 text-xs font-bold rounded-lg hover:border-indigo-500 hover:text-indigo-500 transition-all"
+                                      >
+                                        <Plus className="h-3 w-3 mr-1" />
+                                        Add Item
+                                      </button>
+                                    </div>
                                   </td>
                                   <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
@@ -1734,6 +1815,51 @@ export default function AdminDashboard() {
                   className="flex-1 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
                 >
                   {editingAttribute ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Attribute Value Modal */}
+      {isAttributeValueModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">
+                Add Attribute Value
+              </h3>
+              <button onClick={() => setIsAttributeValueModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <form onSubmit={handleAttributeValueSubmit} className="p-8 space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Value</label>
+                <input
+                  required
+                  autoFocus
+                  type="text"
+                  value={attributeValueForm.value}
+                  onChange={e => setAttributeValueForm({ ...attributeValueForm, value: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. Red, XL, Cotton"
+                />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAttributeValueModalOpen(false)}
+                  className="flex-1 px-6 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
+                >
+                  Add
                 </button>
               </div>
             </form>

@@ -262,6 +262,34 @@ async function initDb() {
         { name: "Material", slug: "material" }
       ]);
     }
+
+    const hasAttributeValues = await db.schema.hasTable("attribute_values");
+    if (!hasAttributeValues) {
+      await db.schema.createTable("attribute_values", (table) => {
+        table.increments("id").primary();
+        table.integer("attribute_id").unsigned().references("id").inTable("attributes").onDelete("CASCADE");
+        table.string("value").notNullable();
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
+      console.log("Attribute values table created.");
+      
+      // Get attribute IDs
+      const colorAttr = await db("attributes").where({ slug: "color" }).first();
+      const sizeAttr = await db("attributes").where({ slug: "size" }).first();
+      
+      if (colorAttr && sizeAttr) {
+        await db("attribute_values").insert([
+          { attribute_id: colorAttr.id, value: "Red" },
+          { attribute_id: colorAttr.id, value: "Green" },
+          { attribute_id: colorAttr.id, value: "Blue" },
+          { attribute_id: sizeAttr.id, value: "S" },
+          { attribute_id: sizeAttr.id, value: "M" },
+          { attribute_id: sizeAttr.id, value: "L" },
+          { attribute_id: sizeAttr.id, value: "XL" },
+          { attribute_id: sizeAttr.id, value: "XXL" }
+        ]);
+      }
+    }
   } catch (error) {
     console.error("Error in initDb:", error);
     throw error;
@@ -593,6 +621,40 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to delete attribute" });
+    }
+  });
+
+  // Attribute Values (Admin)
+  app.get("/api/admin/attribute-values", authenticate, async (req, res) => {
+    try {
+      const values = await db("attribute_values").select("*").orderBy("created_at", "asc");
+      res.json(values);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch attribute values" });
+    }
+  });
+
+  app.post("/api/admin/attribute-values", authenticate, async (req, res) => {
+    const { attribute_id, value } = req.body;
+    if (!attribute_id || !value) return res.status(400).json({ error: "Attribute ID and value are required" });
+    
+    try {
+      const [id] = await db("attribute_values").insert({ attribute_id, value });
+      res.status(201).json({ id, attribute_id, value });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to create attribute value" });
+    }
+  });
+
+  app.delete("/api/admin/attribute-values/:id", authenticate, async (req, res) => {
+    try {
+      await db("attribute_values").where({ id: req.params.id }).del();
+      res.json({ message: "Attribute value deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete attribute value" });
     }
   });
 
