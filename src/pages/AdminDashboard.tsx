@@ -812,7 +812,7 @@ export default function AdminDashboard() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">Price ($)</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Price (৳)</label>
                   <input
                     required
                     type="number"
