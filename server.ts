@@ -6,6 +6,7 @@ import fs from "fs/promises";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import knex from "knex";
+import multer from "multer";
 import { sendEmail, generateOrderConfirmationEmail, generateShippingUpdateEmail } from "./src/services/emailService.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -20,6 +21,27 @@ const db = knex({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || "super-secret-key";
+
+// Multer setup for File Manager
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+const storage = multer.diskStorage({
+  destination: async (req, file, cb) => {
+    try {
+      await fs.mkdir(UPLOADS_DIR, { recursive: true });
+      cb(null, UPLOADS_DIR);
+    } catch (err) {
+      cb(err as any, UPLOADS_DIR);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + "-" + file.originalname);
+  }
+});
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
 
 async function initDb() {
   console.log("Initializing database...");
@@ -189,6 +211,7 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json({ limit: '10mb' }));
+  app.use("/uploads", express.static(UPLOADS_DIR));
 
   // Health check
   app.get("/api/health", (req, res) => {
@@ -550,6 +573,59 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to delete review" });
+    }
+  });
+
+  app.delete("/api/admin/reviews/:id", authenticate, async (req, res) => {
+    try {
+      await db("reviews").where({ id: req.params.id }).del();
+      res.json({ message: "Review deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete review" });
+    }
+  });
+
+  // File Manager (Admin)
+  app.get("/api/admin/files", authenticate, async (req, res) => {
+    try {
+      await fs.mkdir(UPLOADS_DIR, { recursive: true });
+      const files = await fs.readdir(UPLOADS_DIR);
+      const fileDetails = await Promise.all(
+        files.map(async (filename) => {
+          const stats = await fs.stat(path.join(UPLOADS_DIR, filename));
+          return {
+            name: filename,
+            size: stats.size,
+            created_at: stats.birthtime,
+            url: `/uploads/${filename}`
+          };
+        })
+      );
+      res.json(fileDetails);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to list files" });
+    }
+  });
+
+  app.post("/api/admin/files/upload", authenticate, upload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+    res.status(201).json({
+      name: req.file.filename,
+      size: req.file.size,
+      url: `/uploads/${req.file.filename}`
+    });
+  });
+
+  app.delete("/api/admin/files/:filename", authenticate, async (req, res) => {
+    try {
+      const filepath = path.join(UPLOADS_DIR, req.params.filename);
+      await fs.unlink(filepath);
+      res.json({ message: "File deleted successfully" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete file" });
     }
   });
 

@@ -21,17 +21,22 @@ import {
   Menu,
   ChevronRight,
   Upload,
-  Image as ImageIcon
+  Image as ImageIcon,
+  File,
+  HardDrive,
+  Copy,
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<(Review & { product_name?: string })[]>([]);
+  const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -61,17 +66,20 @@ export default function AdminDashboard() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, reviewRes] = await Promise.all([
+      const [prodRes, orderRes, reviewRes, fileRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/admin/orders', {
           headers: { 'Authorization': `Bearer ${token}` }
         }),
         fetch('/api/admin/reviews', {
           headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('/api/admin/files', {
+          headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
 
-      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401) {
+      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401) {
         logout();
         navigate('/admin/login');
         return;
@@ -80,10 +88,12 @@ export default function AdminDashboard() {
       const prodData = await prodRes.json();
       const orderData = await orderRes.json();
       const reviewData = await reviewRes.json();
+      const fileData = await fileRes.json();
 
       setProducts(prodData);
       setOrders(orderData);
       setReviews(reviewData);
+      setFiles(fileData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -162,6 +172,49 @@ export default function AdminDashboard() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const deleteFile = async (filename: string) => {
+    if (!confirm('Are you sure you want to delete this file?')) return;
+    try {
+      const res = await fetch(`/api/admin/files/${filename}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/admin/files/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (res.ok) {
+        fetchAll();
+      } else {
+        const err = await res.json();
+        alert(`Upload failed: ${err.error}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('An error occurred during upload.');
     }
   };
 
@@ -409,6 +462,14 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('reviews')}
               icon={<Star className="h-5 w-5" />}
               label="Reviews"
+              isOpen={isSidebarOpen}
+            />
+
+            <SidebarItem 
+              active={activeTab === 'file-manager'} 
+              onClick={() => setActiveTab('file-manager')}
+              icon={<HardDrive className="h-5 w-5" />}
+              label="File Manager"
               isOpen={isSidebarOpen}
             />
           </div>
@@ -890,6 +951,83 @@ export default function AdminDashboard() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'file-manager' && (
+                <div className="space-y-6">
+                  {/* File Manager Header */}
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">File Manager</h2>
+                      <p className="text-gray-500 text-sm">Upload and manage images and assets for your products.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25 cursor-pointer">
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload File
+                        <input type="file" className="hidden" onChange={handleFileUpload} />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Files Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {files.length > 0 ? (
+                      files.map((file) => (
+                        <div key={file.name} className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col">
+                          <div className="aspect-square bg-gray-50 flex items-center justify-center relative overflow-hidden">
+                            {file.name.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) ? (
+                              <img src={file.url} alt={file.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
+                            ) : (
+                              <File className="h-12 w-12 text-gray-300" />
+                            )}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <button 
+                                onClick={() => {
+                                  navigator.clipboard.writeText(window.location.origin + file.url);
+                                  alert('URL copied to clipboard!');
+                                }}
+                                className="p-2 bg-white rounded-lg text-gray-900 hover:bg-gray-100 transition-colors"
+                                title="Copy URL"
+                              >
+                                <Copy className="h-4 w-4" />
+                              </button>
+                              <a 
+                                href={file.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="p-2 bg-white rounded-lg text-gray-900 hover:bg-gray-100 transition-colors"
+                                title="View Full"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                              <button 
+                                onClick={() => deleteFile(file.name)}
+                                className="p-2 bg-red-500 rounded-lg text-white hover:bg-red-600 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <p className="text-sm font-bold text-gray-900 truncate" title={file.name}>{file.name}</p>
+                            <div className="flex justify-between items-center mt-1">
+                              <p className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
+                              <p className="text-xs text-gray-400">{new Date(file.created_at).toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-full bg-white rounded-3xl border border-gray-100 p-20 text-center">
+                        <HardDrive className="h-16 w-16 text-gray-200 mx-auto mb-4" />
+                        <h3 className="text-xl font-bold text-gray-900">No files uploaded</h3>
+                        <p className="text-gray-500">Upload images to use them in your products.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
