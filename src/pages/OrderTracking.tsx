@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { Package, Truck, CheckCircle, Clock, ArrowLeft, MapPin, Phone, User, ChevronRight } from 'lucide-react';
 import { Order } from '../types';
@@ -14,6 +14,7 @@ const steps = [
 
 export default function OrderTracking() {
   const { id: urlId } = useParams();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState(urlId || '');
   const [order, setOrder] = useState<(Order & { product_image?: string }) | null>(null);
   const [searchResults, setSearchResults] = useState<(Order & { product_image?: string })[]>([]);
@@ -23,6 +24,8 @@ export default function OrderTracking() {
   useEffect(() => {
     if (urlId) {
       fetchOrder(urlId);
+    } else {
+      setOrder(null);
     }
   }, [urlId]);
 
@@ -38,6 +41,9 @@ export default function OrderTracking() {
       .then(data => {
         setOrder(data);
         setLoading(false);
+        if (urlId !== id) {
+          navigate(`/track-order/${id}`, { replace: true });
+        }
       })
       .catch(err => {
         setError(err.message);
@@ -65,6 +71,9 @@ export default function OrderTracking() {
           fetchOrder(data[0].id.toString());
         } else {
           setSearchResults(data);
+          if (urlId) {
+            navigate('/track-order', { replace: true });
+          }
         }
         setLoading(false);
       })
@@ -154,6 +163,16 @@ export default function OrderTracking() {
                   <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg uppercase">
                     {result.status}
                   </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+                  <div className="flex items-center text-sm text-gray-600">
+                    <User className="h-3 w-3 mr-1" />
+                    {result.customer_name}
+                  </div>
+                  <div className="flex items-center text-sm text-gray-600">
+                    <Phone className="h-3 w-3 mr-1" />
+                    {result.phone}
+                  </div>
                 </div>
                 <p className="text-sm text-gray-500">{result.product_name}</p>
                 <p className="text-xs text-gray-400 mt-1">{new Date(result.created_at).toLocaleDateString()}</p>

@@ -415,15 +415,33 @@ async function startServer() {
     const { q } = req.query;
     if (!q) return res.status(400).json({ error: "Search query is required" });
 
-    const orders = await db("orders")
-      .where("orders.id", "like", `%${q}%`)
-      .orWhere("orders.customer_name", "like", `%${q}%`)
-      .orWhere("orders.phone", "like", `%${q}%`)
-      .join("products", "orders.product_id", "=", "products.id")
-      .select("orders.*", "products.name as product_name", "products.price as product_price", "products.image as product_image")
-      .limit(20);
+    try {
+      const query = db("orders")
+        .join("products", "orders.product_id", "=", "products.id")
+        .select("orders.*", "products.name as product_name", "products.price as product_price", "products.image as product_image")
+        .limit(20);
 
-    res.json(orders);
+      // If q is a number, try exact match on ID first
+      const qNum = parseInt(q as string);
+      if (!isNaN(qNum)) {
+        query.where(function() {
+          this.where("orders.id", qNum)
+            .orWhere("orders.customer_name", "like", `%${q}%`)
+            .orWhere("orders.phone", "like", `%${q}%`);
+        });
+      } else {
+        query.where(function() {
+          this.where("orders.customer_name", "like", `%${q}%`)
+            .orWhere("orders.phone", "like", `%${q}%`);
+        });
+      }
+
+      const orders = await query;
+      res.json(orders);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Search failed" });
+    }
   });
 
   app.get("/api/orders/:id", async (req, res) => {
