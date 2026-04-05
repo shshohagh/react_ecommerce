@@ -158,6 +158,18 @@ async function initDb() {
         });
       }
     }
+
+    const hasWishlist = await db.schema.hasTable("wishlist");
+    if (!hasWishlist) {
+      await db.schema.createTable("wishlist", (table) => {
+        table.increments("id").primary();
+        table.integer("user_id").unsigned().references("id").inTable("users").onDelete("CASCADE");
+        table.integer("product_id").unsigned().references("id").inTable("products").onDelete("CASCADE");
+        table.timestamp("created_at").defaultTo(db.fn.now());
+        table.unique(["user_id", "product_id"]);
+      });
+      console.log("Wishlist table created.");
+    }
   } catch (error) {
     console.error("Error in initDb:", error);
     throw error;
@@ -265,6 +277,52 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to submit review" });
+    }
+  });
+
+  // Wishlist (Authenticated)
+  app.get("/api/wishlist", authenticate, async (req: any, res) => {
+    try {
+      const wishlist = await db("wishlist")
+        .where({ user_id: req.user.id })
+        .join("products", "wishlist.product_id", "=", "products.id")
+        .select("products.*");
+      res.json(wishlist);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch wishlist" });
+    }
+  });
+
+  app.post("/api/wishlist", authenticate, async (req: any, res) => {
+    const { product_id } = req.body;
+    if (!product_id) return res.status(400).json({ error: "Product ID is required" });
+
+    try {
+      // Check if already in wishlist
+      const existing = await db("wishlist").where({ user_id: req.user.id, product_id }).first();
+      if (existing) return res.status(400).json({ error: "Product already in wishlist" });
+
+      await db("wishlist").insert({
+        user_id: req.user.id,
+        product_id
+      });
+      res.status(201).json({ message: "Added to wishlist" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to add to wishlist" });
+    }
+  });
+
+  app.delete("/api/wishlist/:productId", authenticate, async (req: any, res) => {
+    try {
+      await db("wishlist")
+        .where({ user_id: req.user.id, product_id: req.params.productId })
+        .delete();
+      res.json({ message: "Removed from wishlist" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to remove from wishlist" });
     }
   });
 

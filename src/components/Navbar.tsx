@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingCart, User, LogOut, Menu, X } from 'lucide-react';
+import { ShoppingCart, User, LogOut, Menu, X, Heart } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export default function Navbar() {
@@ -28,6 +28,10 @@ export default function Navbar() {
           <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-8">
             <Link to="/" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-medium">Home</Link>
             <Link to="/track-order" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-medium">Track Order</Link>
+            <Link to="/wishlist" className="flex items-center text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-medium">
+              <Heart className="h-4 w-4 mr-1" />
+              Wishlist
+            </Link>
             {isAuthenticated ? (
               <>
                 <Link to="/admin/dashboard" className="text-gray-600 hover:text-indigo-600 px-3 py-2 text-sm font-medium">Dashboard</Link>
@@ -76,6 +80,13 @@ export default function Navbar() {
               onClick={() => setIsMenuOpen(false)}
             >
               Track Order
+            </Link>
+            <Link
+              to="/wishlist"
+              className="block px-3 py-2 text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Wishlist
             </Link>
             {isAuthenticated ? (
               <>

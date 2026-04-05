@@ -3,6 +3,7 @@ import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import ProductDetails from './pages/ProductDetails';
 import OrderTracking from './pages/OrderTracking';
+import Wishlist from './pages/Wishlist';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 
@@ -19,6 +20,7 @@ function AppContent() {
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/track-order" element={<OrderTracking />} />
           <Route path="/track-order/:id" element={<OrderTracking />} />
+          <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>

@@ -2,14 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Product, Review } from '../types';
 import { formatPrice } from '../lib/utils';
-import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../hooks/useAuth';
 
 export default function ProductDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { token, isAuthenticated } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [isWishlisted, setIsWishlisted] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{ id: number } | null>(null);
@@ -44,6 +48,16 @@ export default function ProductDetails() {
 
         setProduct(productData);
         setReviews(reviewsData);
+
+        if (isAuthenticated) {
+          const wishlistRes = await fetch('/api/wishlist', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (wishlistRes.ok) {
+            const wishlistData = await wishlistRes.json();
+            setIsWishlisted(wishlistData.some((p: Product) => p.id === parseInt(id!)));
+          }
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -52,9 +66,42 @@ export default function ProductDetails() {
     };
 
     fetchData();
-  }, [id]);
+  }, [id, isAuthenticated, token]);
+
+  const toggleWishlist = async () => {
+    if (!isAuthenticated) {
+      alert('Please log in to add items to your wishlist.');
+      return;
+    }
+
+    setWishlistLoading(true);
+    try {
+      if (isWishlisted) {
+        const res = await fetch(`/api/wishlist/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) setIsWishlisted(false);
+      } else {
+        const res = await fetch('/api/wishlist', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ product_id: parseInt(id!) })
+        });
+        if (res.ok) setIsWishlisted(true);
+      }
+    } catch (err) {
+      console.error('Wishlist error:', err);
+    } finally {
+      setWishlistLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
+// ... existing handleSubmit ...
     e.preventDefault();
     setSubmitting(true);
     setError(null);
@@ -159,7 +206,20 @@ export default function ProductDetails() {
           className="space-y-8"
         >
           <div>
-            <h1 className="text-4xl font-extrabold text-gray-900 mb-4">{product.name}</h1>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h1 className="text-4xl font-extrabold text-gray-900">{product.name}</h1>
+              <button
+                onClick={toggleWishlist}
+                disabled={wishlistLoading}
+                className={`p-3 rounded-2xl transition-all duration-300 ${
+                  isWishlisted 
+                    ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
+                    : 'bg-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50'
+                }`}
+              >
+                <Heart className={`h-6 w-6 ${isWishlisted ? 'fill-current' : ''}`} />
+              </button>
+            </div>
             <p className="text-3xl font-bold text-indigo-600 mb-6">{formatPrice(product.price)}</p>
             <div className="prose prose-indigo text-gray-500 max-w-none">
               <p>{product.description}</p>

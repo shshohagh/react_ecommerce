@@ -3,6 +3,7 @@ import ProductCard from '../components/ProductCard';
 import { Product } from '../types';
 import { ShoppingBag, ChevronRight, ChevronLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '../hooks/useAuth';
 
 const SLIDES = [
   {
@@ -29,7 +30,9 @@ const SLIDES = [
 ];
 
 export default function Home() {
+  const { token, isAuthenticated } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
+  const [wishlistIds, setWishlistIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -48,17 +51,30 @@ export default function Home() {
   }, [nextSlide]);
 
   useEffect(() => {
-    fetch('/api/products')
-      .then(res => res.json())
-      .then(data => {
-        setProducts(data);
-        setLoading(false);
-      })
-      .catch(err => {
+    const fetchData = async () => {
+      try {
+        const productsRes = await fetch('/api/products');
+        const productsData = await productsRes.json();
+        setProducts(productsData);
+
+        if (isAuthenticated) {
+          const wishlistRes = await fetch('/api/wishlist', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (wishlistRes.ok) {
+            const wishlistData = await wishlistRes.json();
+            setWishlistIds(wishlistData.map((p: Product) => p.id));
+          }
+        }
+      } catch (err) {
         console.error(err);
+      } finally {
         setLoading(false);
-      });
-  }, []);
+      }
+    };
+
+    fetchData();
+  }, [isAuthenticated, token]);
 
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category || 'Uncategorized')))];
 
@@ -156,6 +172,7 @@ export default function Home() {
         </div>
       </section>
 
+
       {/* Featured Products */}
       <section id="products" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
@@ -193,7 +210,10 @@ export default function Home() {
                 exit={{ opacity: 0, scale: 0.9 }}
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
-                <ProductCard product={product} />
+                <ProductCard 
+                  product={product} 
+                  isWishlistedInitial={wishlistIds.includes(product.id)} 
+                />
               </motion.div>
             ))}
           </AnimatePresence>
