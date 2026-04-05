@@ -77,6 +77,7 @@ async function initDb() {
         table.decimal("price", 10, 2).notNullable();
         table.text("image"); // base64 or URL
         table.string("category").defaultTo("Uncategorized");
+        table.string("brand").defaultTo("No Brand");
         table.boolean("is_featured").defaultTo(false);
       });
 
@@ -88,6 +89,7 @@ async function initDb() {
           price: 199.99,
           image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800&q=80",
           category: "Electronics",
+          brand: "Sony",
           is_featured: true,
         },
         {
@@ -96,6 +98,7 @@ async function initDb() {
           price: 299.00,
           image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&q=80",
           category: "Electronics",
+          brand: "Apple",
           is_featured: true,
         },
         {
@@ -104,10 +107,21 @@ async function initDb() {
           price: 85.50,
           image: "https://images.unsplash.com/photo-1547949003-9792a18a2601?w=800&q=80",
           category: "Accessories",
+          brand: "Herschel",
           is_featured: false,
         }
       ]);
       console.log("Sample products inserted.");
+    } else {
+      // Check if brand column exists
+      const hasBrand = await db.schema.hasColumn("products", "brand");
+      if (!hasBrand) {
+        console.log("Adding brand column to products table...");
+        await db.schema.table("products", (table) => {
+          table.string("brand").defaultTo("No Brand");
+        });
+        console.log("brand column added.");
+      }
     }
 
     const hasOrders = await db.schema.hasTable("orders");
@@ -209,6 +223,25 @@ async function initDb() {
         { name: "Accessories", slug: "accessories" },
         { name: "Clothing", slug: "clothing" },
         { name: "Home & Garden", slug: "home-garden" }
+      ]);
+    }
+
+    const hasBrands = await db.schema.hasTable("brands");
+    if (!hasBrands) {
+      await db.schema.createTable("brands", (table) => {
+        table.increments("id").primary();
+        table.string("name").unique().notNullable();
+        table.string("slug").unique().notNullable();
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
+      console.log("Brands table created.");
+      
+      // Insert some default brands
+      await db("brands").insert([
+        { name: "Sony", slug: "sony" },
+        { name: "Apple", slug: "apple" },
+        { name: "Samsung", slug: "samsung" },
+        { name: "Herschel", slug: "herschel" }
       ]);
     }
   } catch (error) {
@@ -452,6 +485,51 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to delete category" });
+    }
+  });
+
+  // Brands (Admin)
+  app.get("/api/admin/brands", authenticate, async (req, res) => {
+    try {
+      const brands = await db("brands").select("*").orderBy("name", "asc");
+      res.json(brands);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch brands" });
+    }
+  });
+
+  app.post("/api/admin/brands", authenticate, async (req, res) => {
+    const { name, slug } = req.body;
+    if (!name || !slug) return res.status(400).json({ error: "Name and slug are required" });
+    
+    try {
+      const [id] = await db("brands").insert({ name, slug });
+      res.status(201).json({ id, name, slug });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to create brand" });
+    }
+  });
+
+  app.put("/api/admin/brands/:id", authenticate, async (req, res) => {
+    const { name, slug } = req.body;
+    try {
+      await db("brands").where({ id: req.params.id }).update({ name, slug });
+      res.json({ message: "Brand updated" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update brand" });
+    }
+  });
+
+  app.delete("/api/admin/brands/:id", authenticate, async (req, res) => {
+    try {
+      await db("brands").where({ id: req.params.id }).del();
+      res.json({ message: "Brand deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete brand" });
     }
   });
 

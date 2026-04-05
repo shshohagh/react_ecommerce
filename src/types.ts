@@ -5,7 +5,15 @@ export interface Product {
   price: number;
   image: string;
   category: string;
+  brand: string;
   is_featured: boolean;
+}
+
+export interface Brand {
+  id: number;
+  name: string;
+  slug: string;
+  created_at: string;
 }
 
 export interface OrderHistory {
