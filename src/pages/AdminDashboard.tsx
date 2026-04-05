@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDashboardSubMenuOpen, setIsDashboardSubMenuOpen] = useState(false);
+  const [isProductsSubMenuOpen, setIsProductsSubMenuOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<(Review & { product_name?: string })[]>([]);
@@ -544,6 +545,54 @@ export default function AdminDashboard() {
                       <LayoutDashboard className="h-4 w-4" />
                       Overview
                     </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            
+            <div>
+              <button
+                onClick={() => {
+                  if (activeTab !== 'products' && activeTab !== 'categories') {
+                    setActiveTab('products');
+                  }
+                  setIsProductsSubMenuOpen(!isProductsSubMenuOpen);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ${
+                  (activeTab === 'products' || activeTab === 'categories') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Package className="h-5 w-5" />
+                  {isSidebarOpen && <span className="font-bold">Products</span>}
+                </div>
+                {isSidebarOpen && (
+                  <motion.div
+                    animate={{ rotate: isProductsSubMenuOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </motion.div>
+                )}
+              </button>
+              
+              <AnimatePresence>
+                {isProductsSubMenuOpen && isSidebarOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden ml-4 mt-2 space-y-1"
+                  >
+                    <button
+                      onClick={() => setActiveTab('products')}
+                      className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                        activeTab === 'products' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Package className="h-4 w-4" />
+                      Products List
+                    </button>
                     <button
                       onClick={() => setActiveTab('categories')}
                       className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
@@ -557,14 +606,6 @@ export default function AdminDashboard() {
                 )}
               </AnimatePresence>
             </div>
-            
-            <SidebarItem 
-              active={activeTab === 'products'} 
-              onClick={() => setActiveTab('products')}
-              icon={<Package className="h-5 w-5" />}
-              label="Products"
-              isOpen={isSidebarOpen}
-            />
             
             <SidebarItem 
               active={activeTab === 'orders'} 
