@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
-import { Product, Order } from '../types';
+import { Product, Order, Review } from '../types';
 import { formatPrice } from '../lib/utils';
 import {
   Plus,
@@ -27,10 +27,11 @@ import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [reviews, setReviews] = useState<(Review & { product_name?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -60,14 +61,17 @@ export default function AdminDashboard() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes] = await Promise.all([
+      const [prodRes, orderRes, reviewRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/admin/orders', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('/api/admin/reviews', {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
 
-      if (prodRes.status === 401 || orderRes.status === 401) {
+      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401) {
         logout();
         navigate('/admin/login');
         return;
@@ -75,9 +79,11 @@ export default function AdminDashboard() {
 
       const prodData = await prodRes.json();
       const orderData = await orderRes.json();
+      const reviewData = await reviewRes.json();
 
       setProducts(prodData);
       setOrders(orderData);
+      setReviews(reviewData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -137,6 +143,21 @@ export default function AdminDashboard() {
         setIsModalOpen(false);
         setEditingProduct(null);
         setProductForm({ name: '', description: '', price: '', image: '', category: 'Uncategorized', is_featured: false });
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteReview = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this review?')) return;
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
         fetchAll();
       }
     } catch (err) {
@@ -384,12 +405,11 @@ export default function AdminDashboard() {
             </div>
 
             <SidebarItem 
-              active={false} 
-              onClick={() => {}}
+              active={activeTab === 'reviews'} 
+              onClick={() => setActiveTab('reviews')}
               icon={<Star className="h-5 w-5" />}
               label="Reviews"
               isOpen={isSidebarOpen}
-              disabled
             />
           </div>
 
@@ -776,6 +796,97 @@ export default function AdminDashboard() {
                               </td>
                             </tr>
                           ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'reviews' && (
+                <div className="space-y-6">
+                  {/* Reviews Header */}
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">Customer Reviews</h2>
+                      <p className="text-gray-500 text-sm">Monitor and manage feedback from your customers.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="px-4 py-2 bg-indigo-50 rounded-xl text-indigo-600 text-sm font-bold">
+                        {reviews.length} Total Reviews
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Reviews Table */}
+                  <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-50/50 border-b border-gray-100">
+                          <tr>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Customer</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Product</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Rating</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Comment</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Date</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {reviews.length > 0 ? (
+                            reviews.map(review => (
+                              <tr key={review.id} className="hover:bg-gray-50/50 transition-colors">
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold">
+                                      {review.customer_name.charAt(0)}
+                                    </div>
+                                    <div className="text-sm font-bold text-gray-900">{review.customer_name}</div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="text-sm font-bold text-gray-900">{review.product_name}</div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex">
+                                    {[...Array(5)].map((_, i) => (
+                                      <Star
+                                        key={i}
+                                        className={`h-3 w-3 ${
+                                          i < review.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200'
+                                        }`}
+                                      />
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="text-sm text-gray-600 line-clamp-2 max-w-md">{review.comment}</div>
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-500">
+                                  {new Date(review.created_at).toLocaleDateString()}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <button
+                                    onClick={() => deleteReview(review.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                    title="Delete Review"
+                                  >
+                                    <Trash2 className="h-5 w-5" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6} className="px-6 py-20 text-center">
+                                <div className="max-w-xs mx-auto">
+                                  <Star className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+                                  <h3 className="text-lg font-bold text-gray-900">No reviews yet</h3>
+                                  <p className="text-gray-500 text-sm">Customer feedback will appear here once they start reviewing products.</p>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>

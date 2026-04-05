@@ -529,6 +529,30 @@ async function startServer() {
     res.status(201).json(newReview);
   });
 
+  // Reviews (Admin)
+  app.get("/api/admin/reviews", authenticate, async (req, res) => {
+    try {
+      const reviews = await db("reviews")
+        .join("products", "reviews.product_id", "=", "products.id")
+        .select("reviews.*", "products.name as product_name")
+        .orderBy("created_at", "desc");
+      res.json(reviews);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+  });
+
+  app.delete("/api/admin/reviews/:id", authenticate, async (req, res) => {
+    try {
+      await db("reviews").where({ id: req.params.id }).del();
+      res.json({ message: "Review deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete review" });
+    }
+  });
+
   // --- Vite Middleware ---
   if (process.env.NODE_ENV !== "production") {
     console.log("Initializing Vite middleware in development mode...");
