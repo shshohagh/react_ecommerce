@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
-import { Product, Order, Review, Category, Brand } from '../types';
+import { Product, Order, Review, Category, Brand, Attribute } from '../types';
 import { formatPrice } from '../lib/utils';
 import {
   Plus,
@@ -33,7 +33,7 @@ import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands' | 'attributes'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDashboardSubMenuOpen, setIsDashboardSubMenuOpen] = useState(false);
   const [isProductsSubMenuOpen, setIsProductsSubMenuOpen] = useState(false);
@@ -42,14 +42,17 @@ export default function AdminDashboard() {
   const [reviews, setReviews] = useState<(Review & { product_name?: string })[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
+  const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
+  const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
+  const [editingAttribute, setEditingAttribute] = useState<Attribute | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
@@ -83,10 +86,15 @@ export default function AdminDashboard() {
     slug: ''
   });
 
+  const [attributeForm, setAttributeForm] = useState({
+    name: '',
+    slug: ''
+  });
+
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, reviewRes, fileRes, catRes, brandRes] = await Promise.all([
+      const [prodRes, orderRes, reviewRes, fileRes, catRes, brandRes, attrRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/admin/orders', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -102,10 +110,13 @@ export default function AdminDashboard() {
         }),
         fetch('/api/admin/brands', {
           headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('/api/admin/attributes', {
+          headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
 
-      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401 || catRes.status === 401 || brandRes.status === 401) {
+      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401 || catRes.status === 401 || brandRes.status === 401 || attrRes.status === 401) {
         logout();
         navigate('/admin/login');
         return;
@@ -117,6 +128,7 @@ export default function AdminDashboard() {
       const fileData = await fileRes.json();
       const catData = await catRes.json();
       const brandData = await brandRes.json();
+      const attrData = await attrRes.json();
 
       setProducts(prodData);
       setOrders(orderData);
@@ -124,6 +136,7 @@ export default function AdminDashboard() {
       setFiles(fileData);
       setCategories(catData);
       setBrands(brandData);
+      setAttributes(attrData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -235,6 +248,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const deleteAttribute = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this attribute?')) return;
+    try {
+      const res = await fetch(`/api/admin/attributes/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const openCategoryModal = (category: Category | null = null) => {
     if (category) {
       setEditingCategory(category);
@@ -267,6 +295,23 @@ export default function AdminDashboard() {
       });
     }
     setIsBrandModalOpen(true);
+  };
+
+  const openAttributeModal = (attribute: Attribute | null = null) => {
+    if (attribute) {
+      setEditingAttribute(attribute);
+      setAttributeForm({
+        name: attribute.name,
+        slug: attribute.slug
+      });
+    } else {
+      setEditingAttribute(null);
+      setAttributeForm({
+        name: '',
+        slug: ''
+      });
+    }
+    setIsAttributeModalOpen(true);
   };
 
   const handleCategorySubmit = async (e: React.FormEvent) => {
@@ -310,6 +355,30 @@ export default function AdminDashboard() {
 
       if (res.ok) {
         setIsBrandModalOpen(false);
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAttributeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editingAttribute ? `/api/admin/attributes/${editingAttribute.id}` : '/api/admin/attributes';
+    const method = editingAttribute ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(attributeForm)
+      });
+
+      if (res.ok) {
+        setIsAttributeModalOpen(false);
         fetchAll();
       }
     } catch (err) {
@@ -622,13 +691,13 @@ export default function AdminDashboard() {
             <div>
               <button
                 onClick={() => {
-                  if (activeTab !== 'products' && activeTab !== 'categories' && activeTab !== 'brands') {
+                  if (activeTab !== 'products' && activeTab !== 'categories' && activeTab !== 'brands' && activeTab !== 'attributes') {
                     setActiveTab('products');
                   }
                   setIsProductsSubMenuOpen(!isProductsSubMenuOpen);
                 }}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ${
-                  (activeTab === 'products' || activeTab === 'categories' || activeTab === 'brands') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'text-gray-500 hover:bg-gray-50'
+                  (activeTab === 'products' || activeTab === 'categories' || activeTab === 'brands' || activeTab === 'attributes') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'text-gray-500 hover:bg-gray-50'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -679,6 +748,15 @@ export default function AdminDashboard() {
                     >
                       <Star className="h-4 w-4" />
                       Brand
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('attributes')}
+                      className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                        activeTab === 'attributes' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      <File className="h-4 w-4" />
+                      Attributes
                     </button>
                   </motion.div>
                 )}
@@ -1411,6 +1489,76 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   )}
+
+                  {activeTab === 'attributes' && (
+                    <div className="space-y-6">
+                      {/* Attributes Header */}
+                      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <h2 className="text-2xl font-bold text-gray-900">Attribute Management</h2>
+                          <p className="text-gray-500 text-sm">Manage product attributes like Color, Size, etc.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => openAttributeModal()}
+                            className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Attribute
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Attributes Table */}
+                      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50/50 border-b border-gray-100">
+                              <tr>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Name</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Slug</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Created At</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {attributes.map(attr => (
+                                <tr key={attr.id} className="hover:bg-gray-50/50 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <div className="text-sm font-bold text-gray-900">{attr.name}</div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="text-sm text-gray-500">{attr.slug}</div>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-500">
+                                    {new Date(attr.created_at).toLocaleDateString()}
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => openAttributeModal(attr)}
+                                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                        title="Edit Attribute"
+                                      >
+                                        <Edit className="h-5 w-5" />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteAttribute(attr.id)}
+                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                        title="Delete Attribute"
+                                      >
+                                        <Trash2 className="h-5 w-5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1527,6 +1675,65 @@ export default function AdminDashboard() {
                   className="flex-1 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
                 >
                   {editingBrand ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Attribute Modal */}
+      {isAttributeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">
+                {editingAttribute ? 'Edit Attribute' : 'Add New Attribute'}
+              </h3>
+              <button onClick={() => setIsAttributeModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <form onSubmit={handleAttributeSubmit} className="p-8 space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Attribute Name</label>
+                <input
+                  required
+                  type="text"
+                  value={attributeForm.name}
+                  onChange={e => {
+                    const name = e.target.value;
+                    const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+                    setAttributeForm({ ...attributeForm, name, slug });
+                  }}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. Color"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Slug</label>
+                <input
+                  required
+                  type="text"
+                  value={attributeForm.slug}
+                  onChange={e => setAttributeForm({ ...attributeForm, slug: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. color"
+                />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsAttributeModalOpen(false)}
+                  className="flex-1 px-6 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
+                >
+                  {editingAttribute ? 'Update' : 'Create'}
                 </button>
               </div>
             </form>

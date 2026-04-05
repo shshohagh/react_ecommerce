@@ -244,6 +244,24 @@ async function initDb() {
         { name: "Herschel", slug: "herschel" }
       ]);
     }
+
+    const hasAttributes = await db.schema.hasTable("attributes");
+    if (!hasAttributes) {
+      await db.schema.createTable("attributes", (table) => {
+        table.increments("id").primary();
+        table.string("name").unique().notNullable();
+        table.string("slug").unique().notNullable();
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
+      console.log("Attributes table created.");
+      
+      // Insert some default attributes
+      await db("attributes").insert([
+        { name: "Color", slug: "color" },
+        { name: "Size", slug: "size" },
+        { name: "Material", slug: "material" }
+      ]);
+    }
   } catch (error) {
     console.error("Error in initDb:", error);
     throw error;
@@ -530,6 +548,51 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to delete brand" });
+    }
+  });
+
+  // Attributes (Admin)
+  app.get("/api/admin/attributes", authenticate, async (req, res) => {
+    try {
+      const attributes = await db("attributes").select("*").orderBy("name", "asc");
+      res.json(attributes);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch attributes" });
+    }
+  });
+
+  app.post("/api/admin/attributes", authenticate, async (req, res) => {
+    const { name, slug } = req.body;
+    if (!name || !slug) return res.status(400).json({ error: "Name and slug are required" });
+    
+    try {
+      const [id] = await db("attributes").insert({ name, slug });
+      res.status(201).json({ id, name, slug });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to create attribute" });
+    }
+  });
+
+  app.put("/api/admin/attributes/:id", authenticate, async (req, res) => {
+    const { name, slug } = req.body;
+    try {
+      await db("attributes").where({ id: req.params.id }).update({ name, slug });
+      res.json({ message: "Attribute updated" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update attribute" });
+    }
+  });
+
+  app.delete("/api/admin/attributes/:id", authenticate, async (req, res) => {
+    try {
+      await db("attributes").where({ id: req.params.id }).del();
+      res.json({ message: "Attribute deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete attribute" });
     }
   });
 

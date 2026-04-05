@@ -16,6 +16,13 @@ export interface Brand {
   created_at: string;
 }
 
+export interface Attribute {
+  id: number;
+  name: string;
+  slug: string;
+  created_at: string;
+}
+
 export interface OrderHistory {
   id: number;
   order_id: number;
