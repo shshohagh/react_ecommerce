@@ -1037,7 +1037,16 @@ export default function AdminDashboard() {
                       <button
                         onClick={() => {
                           setEditingProduct(null);
-                          setProductForm({ name: '', description: '', price: '', image: '', category: 'Uncategorized', is_featured: false });
+                          setProductForm({ 
+                            name: '', 
+                            description: '', 
+                            price: '', 
+                            image: '', 
+                            category: 'Uncategorized', 
+                            brand: 'No Brand',
+                            attributes: {},
+                            is_featured: false 
+                          });
                           setIsModalOpen(true);
                         }}
                         className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25"
@@ -2035,9 +2044,9 @@ export default function AdminDashboard() {
                       <div key={attr.id}>
                         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{attr.name}</label>
                         <select
-                          value={productForm.attributes[attr.name] || ''}
+                          value={(productForm.attributes && productForm.attributes[attr.name]) || ''}
                           onChange={e => {
-                            const newAttrs = { ...productForm.attributes };
+                            const newAttrs = { ...(productForm.attributes || {}) };
                             if (e.target.value) {
                               newAttrs[attr.name] = e.target.value;
                             } else {
