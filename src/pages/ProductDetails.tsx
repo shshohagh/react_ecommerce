@@ -26,6 +26,8 @@ export default function ProductDetails() {
     address: ''
   });
 
+  const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
+
   const [reviewForm, setReviewForm] = useState({
     customer_name: '',
     rating: 5,
@@ -112,7 +114,8 @@ export default function ProductDetails() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          product_id: parseInt(id!)
+          product_id: parseInt(id!),
+          attributes: JSON.stringify(selectedAttributes)
         })
       });
 
@@ -262,6 +265,38 @@ export default function ProductDetails() {
                     <div className="bg-red-50 border border-red-100 text-red-600 text-sm p-4 rounded-xl flex items-center">
                       <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
                       {error}
+                    </div>
+                  )}
+
+                  {product.attributes && (
+                    <div className="space-y-4 mb-6">
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Select Options</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {Object.entries(JSON.parse(product.attributes)).map(([key, value]) => {
+                          const options = (value as string).split(',').map(v => v.trim());
+                          return (
+                            <div key={key} className="space-y-2">
+                              <label className="block text-xs font-bold text-gray-500">{key}</label>
+                              <div className="flex flex-wrap gap-2">
+                                {options.map(opt => (
+                                  <button
+                                    key={opt}
+                                    type="button"
+                                    onClick={() => setSelectedAttributes({ ...selectedAttributes, [key]: opt })}
+                                    className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
+                                      selectedAttributes[key] === opt
+                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200'
+                                        : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-600 hover:text-indigo-600'
+                                    }`}
+                                  >
+                                    {opt}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

@@ -78,6 +78,7 @@ async function initDb() {
         table.text("image"); // base64 or URL
         table.string("category").defaultTo("Uncategorized");
         table.string("brand").defaultTo("No Brand");
+        table.text("attributes"); // JSON string
         table.boolean("is_featured").defaultTo(false);
       });
 
@@ -135,6 +136,7 @@ async function initDb() {
         table.string("phone").notNullable();
         table.text("address").notNullable();
         table.integer("product_id").unsigned().references("id").inTable("products");
+        table.text("attributes"); // JSON string
         table.string("status").defaultTo("pending"); // pending, confirmed, delivered
         table.string("estimated_delivery");
         table.timestamp("created_at").defaultTo(db.fn.now());
@@ -660,7 +662,7 @@ async function startServer() {
 
   // Orders (Public)
   app.post("/api/orders", async (req, res) => {
-    const { customer_name, email, phone, address, product_id } = req.body;
+    const { customer_name, email, phone, address, product_id, attributes } = req.body;
     if (!customer_name || !phone || !address || !product_id) {
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -673,6 +675,7 @@ async function startServer() {
       phone,
       address,
       product_id,
+      attributes,
       status: "pending",
       estimated_delivery: estimated_delivery.toISOString()
     });

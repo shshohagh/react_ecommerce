@@ -255,15 +255,24 @@ export default function OrderTracking() {
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden mb-8">
         <div className="p-8 border-b border-gray-50 bg-gray-50/50">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-extrabold text-gray-900">Track Your Order</h1>
-              <p className="text-gray-500">Estimated Delivery: <span className="font-bold text-indigo-600">{order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : 'TBD'}</span></p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-extrabold text-gray-900">Track Your Order</h1>
+                <p className="text-gray-500">Estimated Delivery: <span className="font-bold text-indigo-600">{order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : 'TBD'}</span></p>
+                {order.attributes && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {Object.entries(JSON.parse(order.attributes)).map(([key, value]) => (
+                      <span key={key} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        {key}: {value as string}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold self-start md:self-center">
+                Status: {order.status.toUpperCase()}
+              </div>
             </div>
-            <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold self-start md:self-center">
-              Status: {order.status.toUpperCase()}
-            </div>
-          </div>
         </div>
 
         <div className="p-8 md:p-12">

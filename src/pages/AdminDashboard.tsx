@@ -75,6 +75,8 @@ export default function AdminDashboard() {
     price: '',
     image: '',
     category: 'Uncategorized',
+    brand: 'No Brand',
+    attributes: {} as Record<string, string>,
     is_featured: false
   });
 
@@ -200,14 +202,24 @@ export default function AdminDashboard() {
         },
         body: JSON.stringify({
           ...productForm,
-          price: parseFloat(productForm.price as string)
+          price: parseFloat(productForm.price as string),
+          attributes: JSON.stringify(productForm.attributes)
         })
       });
 
       if (res.ok) {
         setIsModalOpen(false);
         setEditingProduct(null);
-        setProductForm({ name: '', description: '', price: '', image: '', category: 'Uncategorized', is_featured: false });
+        setProductForm({ 
+          name: '', 
+          description: '', 
+          price: '', 
+          image: '', 
+          category: 'Uncategorized', 
+          brand: 'No Brand',
+          attributes: {},
+          is_featured: false 
+        });
         fetchAll();
       }
     } catch (err) {
@@ -557,12 +569,23 @@ export default function AdminDashboard() {
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
+    let parsedAttributes = {};
+    try {
+      if (product.attributes) {
+        parsedAttributes = JSON.parse(product.attributes);
+      }
+    } catch (e) {
+      console.error("Failed to parse attributes", e);
+    }
+
     setProductForm({
       name: product.name,
       description: product.description,
       price: product.price.toString(),
       image: product.image,
       category: product.category || 'Uncategorized',
+      brand: product.brand || 'No Brand',
+      attributes: parsedAttributes,
       is_featured: product.is_featured
     });
     setIsModalOpen(true);
@@ -1097,6 +1120,15 @@ export default function AdminDashboard() {
                                     <div>
                                       <div className="text-sm font-bold text-gray-900">{product.name}</div>
                                       <div className="text-xs text-gray-400 line-clamp-1 max-w-xs">{product.description}</div>
+                                      {product.attributes && (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                          {Object.entries(JSON.parse(product.attributes)).map(([key, value]) => (
+                                            <span key={key} className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md font-bold border border-indigo-100">
+                                              {key}: {value as string}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
@@ -1201,6 +1233,15 @@ export default function AdminDashboard() {
                               <td className="px-6 py-4">
                                 <div className="text-sm font-bold text-gray-900">{order.product_name}</div>
                                 <div className="text-xs font-bold text-indigo-600">{formatPrice(order.product_price || 0)}</div>
+                                {order.attributes && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {Object.entries(JSON.parse(order.attributes)).map(([key, value]) => (
+                                      <span key={key} className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded-md font-bold border border-indigo-100">
+                                        {key}: {value as string}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
                               </td>
                               <td className="px-6 py-4">
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold border ${
@@ -1985,6 +2026,39 @@ export default function AdminDashboard() {
                       </div>
                       <p className="text-xs text-gray-400">Recommended: Square image, max 2MB</p>
                     </div>
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-4">Product Attributes</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                    {attributes.map(attr => (
+                      <div key={attr.id}>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{attr.name}</label>
+                        <select
+                          value={productForm.attributes[attr.name] || ''}
+                          onChange={e => {
+                            const newAttrs = { ...productForm.attributes };
+                            if (e.target.value) {
+                              newAttrs[attr.name] = e.target.value;
+                            } else {
+                              delete newAttrs[attr.name];
+                            }
+                            setProductForm({ ...productForm, attributes: newAttrs });
+                          }}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
+                        >
+                          <option value="">None</option>
+                          {attributeValues
+                            .filter(v => v.attribute_id === attr.id)
+                            .map(v => (
+                              <option key={v.id} value={v.value}>{v.value}</option>
+                            ))}
+                        </select>
+                      </div>
+                    ))}
+                    {attributes.length === 0 && (
+                      <p className="md:col-span-2 text-center text-sm text-gray-400 py-2">No attributes defined yet.</p>
+                    )}
                   </div>
                 </div>
                 <div className="md:col-span-2">

@@ -6,6 +6,7 @@ export interface Product {
   image: string;
   category: string;
   brand: string;
+  attributes?: string; // JSON string
   is_featured: boolean;
 }
 
@@ -47,6 +48,7 @@ export interface Order {
   product_id: number;
   product_name?: string;
   product_price?: number;
+  attributes?: string; // JSON string
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
   estimated_delivery?: string;
   created_at: string;
