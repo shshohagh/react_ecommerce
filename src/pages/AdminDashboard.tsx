@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
-import { Product, Order, Review } from '../types';
+import { Product, Order, Review, Category } from '../types';
 import { formatPrice } from '../lib/utils';
 import {
   Plus,
@@ -20,26 +20,32 @@ import {
   LogOut,
   Menu,
   ChevronRight,
+  ChevronDown,
   Upload,
   Image as ImageIcon,
   File,
   HardDrive,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Tags
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isDashboardSubMenuOpen, setIsDashboardSubMenuOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [reviews, setReviews] = useState<(Review & { product_name?: string })[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
@@ -63,10 +69,15 @@ export default function AdminDashboard() {
     is_featured: false
   });
 
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    slug: ''
+  });
+
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, reviewRes, fileRes] = await Promise.all([
+      const [prodRes, orderRes, reviewRes, fileRes, catRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/admin/orders', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -76,10 +87,13 @@ export default function AdminDashboard() {
         }),
         fetch('/api/admin/files', {
           headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        fetch('/api/admin/categories', {
+          headers: { 'Authorization': `Bearer ${token}` }
         })
       ]);
 
-      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401) {
+      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401 || catRes.status === 401) {
         logout();
         navigate('/admin/login');
         return;
@@ -89,11 +103,13 @@ export default function AdminDashboard() {
       const orderData = await orderRes.json();
       const reviewData = await reviewRes.json();
       const fileData = await fileRes.json();
+      const catData = await catRes.json();
 
       setProducts(prodData);
       setOrders(orderData);
       setReviews(reviewData);
       setFiles(fileData);
+      setCategories(catData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -168,6 +184,62 @@ export default function AdminDashboard() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteCategory = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this category?')) return;
+    try {
+      const res = await fetch(`/api/admin/categories/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openCategoryModal = (category: Category | null = null) => {
+    if (category) {
+      setEditingCategory(category);
+      setCategoryForm({
+        name: category.name,
+        slug: category.slug
+      });
+    } else {
+      setEditingCategory(null);
+      setCategoryForm({
+        name: '',
+        slug: ''
+      });
+    }
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editingCategory ? `/api/admin/categories/${editingCategory.id}` : '/api/admin/categories';
+    const method = editingCategory ? 'PUT' : 'POST';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(categoryForm)
+      });
+
+      if (res.ok) {
+        setIsCategoryModalOpen(false);
         fetchAll();
       }
     } catch (err) {
@@ -361,7 +433,7 @@ export default function AdminDashboard() {
     return matchesSearch && matchesCategory;
   });
 
-  const categories = ['All', ...Array.from(new Set(products.map(p => p.category || 'Uncategorized')))];
+  const categoryOptions = ['All', ...Array.from(new Set(products.map(p => p.category || 'Uncategorized')))];
 
   const stockImages = [
     { name: 'Electronics', url: 'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=800&q=80' },
@@ -429,13 +501,62 @@ export default function AdminDashboard() {
               {isSidebarOpen ? 'Main Menu' : '•••'}
             </div>
             
-            <SidebarItem 
-              active={activeTab === 'dashboard'} 
-              onClick={() => setActiveTab('dashboard')}
-              icon={<LayoutDashboard className="h-5 w-5" />}
-              label="Dashboard"
-              isOpen={isSidebarOpen}
-            />
+            <div>
+              <button
+                onClick={() => {
+                  if (activeTab !== 'dashboard' && activeTab !== 'categories') {
+                    setActiveTab('dashboard');
+                  }
+                  setIsDashboardSubMenuOpen(!isDashboardSubMenuOpen);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl transition-all duration-300 ${
+                  (activeTab === 'dashboard' || activeTab === 'categories') ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/30' : 'text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <LayoutDashboard className="h-5 w-5" />
+                  {isSidebarOpen && <span className="font-bold">Dashboard</span>}
+                </div>
+                {isSidebarOpen && (
+                  <motion.div
+                    animate={{ rotate: isDashboardSubMenuOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </motion.div>
+                )}
+              </button>
+              
+              <AnimatePresence>
+                {isDashboardSubMenuOpen && isSidebarOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden ml-4 mt-2 space-y-1"
+                  >
+                    <button
+                      onClick={() => setActiveTab('dashboard')}
+                      className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                        activeTab === 'dashboard' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      <LayoutDashboard className="h-4 w-4" />
+                      Overview
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('categories')}
+                      className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                        activeTab === 'categories' ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      <Tags className="h-4 w-4" />
+                      Category
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             
             <SidebarItem 
               active={activeTab === 'products'} 
@@ -588,9 +709,9 @@ export default function AdminDashboard() {
                     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6">
                       <h3 className="font-bold text-gray-900 mb-6">Inventory by Category</h3>
                       <div className="space-y-4">
-                        {categories.filter(c => c !== 'All').map(cat => {
+                        {categoryOptions.filter(c => c !== 'All').map(cat => {
                           const count = products.filter(p => p.category === cat).length;
-                          const percentage = (count / products.length) * 100;
+                          const percentage = products.length > 0 ? (count / products.length) * 100 : 0;
                           return (
                             <div key={cat} className="space-y-1">
                               <div className="flex justify-between text-sm">
@@ -670,7 +791,7 @@ export default function AdminDashboard() {
                         onChange={(e) => setCategoryFilter(e.target.value)}
                         className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all appearance-none bg-white font-medium text-gray-700"
                       >
-                        {categories.map(cat => (
+                        {categoryOptions.map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
                         ))}
                       </select>
@@ -1031,10 +1152,139 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+
+              {activeTab === 'categories' && (
+                <div className="space-y-6">
+                  {/* Categories Header */}
+                  <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-900">Category Management</h2>
+                      <p className="text-gray-500 text-sm">Organize your products into meaningful categories.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => openCategoryModal()}
+                        className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25"
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Category
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Categories Table */}
+                  <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead className="bg-gray-50/50 border-b border-gray-100">
+                          <tr>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Name</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Slug</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Created At</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {categories.map(category => (
+                            <tr key={category.id} className="hover:bg-gray-50/50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="text-sm font-bold text-gray-900">{category.name}</div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="text-sm text-gray-500">{category.slug}</div>
+                              </td>
+                              <td className="px-6 py-4 text-sm text-gray-500">
+                                {new Date(category.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => openCategoryModal(category)}
+                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                    title="Edit Category"
+                                  >
+                                    <Edit className="h-5 w-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteCategory(category.id)}
+                                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                    title="Delete Category"
+                                  >
+                                    <Trash2 className="h-5 w-5" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Category Modal */}
+      {isCategoryModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">
+                {editingCategory ? 'Edit Category' : 'Add New Category'}
+              </h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <form onSubmit={handleCategorySubmit} className="p-8 space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Category Name</label>
+                <input
+                  required
+                  type="text"
+                  value={categoryForm.name}
+                  onChange={e => {
+                    const name = e.target.value;
+                    const slug = name.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+                    setCategoryForm({ ...categoryForm, name, slug });
+                  }}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. Electronics"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Slug</label>
+                <input
+                  required
+                  type="text"
+                  value={categoryForm.slug}
+                  onChange={e => setCategoryForm({ ...categoryForm, slug: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. electronics"
+                />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryModalOpen(false)}
+                  className="flex-1 px-6 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
+                >
+                  {editingCategory ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Product Modal */}
       {isModalOpen && (
@@ -1084,14 +1334,18 @@ export default function AdminDashboard() {
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 mb-2">Category</label>
-                  <input
+                  <select
                     required
-                    type="text"
                     value={productForm.category}
                     onChange={e => setProductForm({ ...productForm, category: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
-                    placeholder="e.g. Electronics, Fashion"
-                  />
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
+                    <option value="Uncategorized">Uncategorized</option>
+                  </select>
                 </div>
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 mb-2">Product Image</label>

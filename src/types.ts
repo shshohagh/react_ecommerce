@@ -46,6 +46,13 @@ export interface Review {
   created_at: string;
 }
 
+export interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  created_at: string;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;

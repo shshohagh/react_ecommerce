@@ -192,6 +192,25 @@ async function initDb() {
       });
       console.log("Wishlist table created.");
     }
+
+    const hasCategories = await db.schema.hasTable("categories");
+    if (!hasCategories) {
+      await db.schema.createTable("categories", (table) => {
+        table.increments("id").primary();
+        table.string("name").unique().notNullable();
+        table.string("slug").unique().notNullable();
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
+      console.log("Categories table created.");
+      
+      // Insert some default categories
+      await db("categories").insert([
+        { name: "Electronics", slug: "electronics" },
+        { name: "Accessories", slug: "accessories" },
+        { name: "Clothing", slug: "clothing" },
+        { name: "Home & Garden", slug: "home-garden" }
+      ]);
+    }
   } catch (error) {
     console.error("Error in initDb:", error);
     throw error;
@@ -391,6 +410,51 @@ async function startServer() {
     }
   });
 
+  // Categories (Admin)
+  app.get("/api/admin/categories", authenticate, async (req, res) => {
+    try {
+      const categories = await db("categories").select("*").orderBy("name", "asc");
+      res.json(categories);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch categories" });
+    }
+  });
+
+  app.post("/api/admin/categories", authenticate, async (req, res) => {
+    const { name, slug } = req.body;
+    if (!name || !slug) return res.status(400).json({ error: "Name and slug are required" });
+    
+    try {
+      const [id] = await db("categories").insert({ name, slug });
+      res.status(201).json({ id, name, slug });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to create category" });
+    }
+  });
+
+  app.put("/api/admin/categories/:id", authenticate, async (req, res) => {
+    const { name, slug } = req.body;
+    try {
+      await db("categories").where({ id: req.params.id }).update({ name, slug });
+      res.json({ message: "Category updated" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update category" });
+    }
+  });
+
+  app.delete("/api/admin/categories/:id", authenticate, async (req, res) => {
+    try {
+      await db("categories").where({ id: req.params.id }).del();
+      res.json({ message: "Category deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete category" });
+    }
+  });
+
   // Orders (Public)
   app.post("/api/orders", async (req, res) => {
     const { customer_name, email, phone, address, product_id } = req.body;
@@ -563,16 +627,6 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to fetch reviews" });
-    }
-  });
-
-  app.delete("/api/admin/reviews/:id", authenticate, async (req, res) => {
-    try {
-      await db("reviews").where({ id: req.params.id }).del();
-      res.json({ message: "Review deleted" });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Failed to delete review" });
     }
   });
 
