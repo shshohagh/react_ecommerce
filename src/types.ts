@@ -10,6 +10,14 @@ export interface Product {
   is_featured: boolean;
 }
 
+export interface ProductVariation {
+  id: number;
+  product_id: number;
+  attributes: string; // JSON string
+  quantity: number;
+  created_at: string;
+}
+
 export interface Brand {
   id: number;
   name: string;

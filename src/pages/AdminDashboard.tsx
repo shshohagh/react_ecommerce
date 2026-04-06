@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
-import { Product, Order, Review, Category, Brand, Attribute, AttributeValue } from '../types';
+import { Product, Order, Review, Category, Brand, Attribute, AttributeValue, ProductVariation } from '../types';
 import { formatPrice } from '../lib/utils';
 import {
   Plus,
@@ -44,9 +44,11 @@ export default function AdminDashboard() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [attributeValues, setAttributeValues] = useState<AttributeValue[]>([]);
+  const [variations, setVariations] = useState<ProductVariation[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalTab, setModalTab] = useState<'basic' | 'variations'>('basic');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
@@ -99,6 +101,63 @@ export default function AdminDashboard() {
     attribute_id: 0,
     value: ''
   });
+  const [variationForm, setVariationForm] = useState({
+    attributes: {} as Record<string, string>,
+    quantity: 0
+  });
+
+  const fetchVariations = async (productId: number) => {
+    try {
+      const res = await fetch(`/api/products/${productId}/variations`);
+      if (res.ok) {
+        const data = await res.json();
+        setVariations(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch variations:', err);
+    }
+  };
+
+  const handleVariationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+
+    try {
+      const res = await fetch(`/api/admin/products/${editingProduct.id}/variations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          attributes: JSON.stringify(variationForm.attributes),
+          quantity: variationForm.quantity
+        })
+      });
+
+      if (res.ok) {
+        setVariationForm({ attributes: {}, quantity: 0 });
+        fetchVariations(editingProduct.id);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteVariation = async (id: number) => {
+    if (!window.confirm('Are you sure you want to delete this variation?')) return;
+    try {
+      const res = await fetch(`/api/admin/variations/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok && editingProduct) {
+        fetchVariations(editingProduct.id);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -569,6 +628,8 @@ export default function AdminDashboard() {
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
+    setModalTab('basic');
+    fetchVariations(product.id);
     let parsedAttributes = {};
     try {
       if (product.attributes) {
@@ -1047,6 +1108,7 @@ export default function AdminDashboard() {
                             attributes: {},
                             is_featured: false 
                           });
+                          setModalTab('basic');
                           setIsModalOpen(true);
                         }}
                         className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25"
@@ -1929,7 +1991,30 @@ export default function AdminDashboard() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            <form onSubmit={handleProductSubmit} className="p-8 space-y-6">
+
+            {editingProduct && (
+              <div className="px-8 pt-4 flex gap-4 border-b border-gray-100">
+                <button
+                  onClick={() => setModalTab('basic')}
+                  className={`pb-4 text-sm font-bold transition-all border-b-2 ${
+                    modalTab === 'basic' ? 'text-indigo-600 border-indigo-600' : 'text-gray-400 border-transparent hover:text-gray-600'
+                  }`}
+                >
+                  Basic Info
+                </button>
+                <button
+                  onClick={() => setModalTab('variations')}
+                  className={`pb-4 text-sm font-bold transition-all border-b-2 ${
+                    modalTab === 'variations' ? 'text-indigo-600 border-indigo-600' : 'text-gray-400 border-transparent hover:text-gray-600'
+                  }`}
+                >
+                  Variations & Stock
+                </button>
+              </div>
+            )}
+
+            {modalTab === 'basic' ? (
+              <form onSubmit={handleProductSubmit} className="p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 mb-2">Product Name</label>
@@ -2097,6 +2182,116 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+            ) : (
+              <div className="p-8 space-y-8 max-h-[60vh] overflow-y-auto">
+                {/* Variation Form */}
+                <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                  <h4 className="text-sm font-bold text-gray-900 mb-4 flex items-center">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New Variation
+                  </h4>
+                  <form onSubmit={handleVariationSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {attributes.map(attr => (
+                      <div key={attr.id}>
+                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">{attr.name}</label>
+                        <select
+                          required
+                          value={variationForm.attributes[attr.name] || ''}
+                          onChange={e => setVariationForm({
+                            ...variationForm,
+                            attributes: { ...variationForm.attributes, [attr.name]: e.target.value }
+                          })}
+                          className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
+                        >
+                          <option value="">Select {attr.name}</option>
+                          {attributeValues
+                            .filter(v => v.attribute_id === attr.id)
+                            .map(v => (
+                              <option key={v.id} value={v.value}>{v.value}</option>
+                            ))}
+                        </select>
+                      </div>
+                    ))}
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Quantity</label>
+                      <input
+                        required
+                        type="number"
+                        min="0"
+                        value={variationForm.quantity}
+                        onChange={e => setVariationForm({ ...variationForm, quantity: parseInt(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                      />
+                    </div>
+                    <div className="md:col-span-3 flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-500/20"
+                      >
+                        Add Variation
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Variations List */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-bold text-gray-900 flex items-center">
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Existing Variations
+                  </h4>
+                  <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-4 py-3 font-bold text-gray-700">Attributes</th>
+                          <th className="px-4 py-3 font-bold text-gray-700">Stock Qty</th>
+                          <th className="px-4 py-3 font-bold text-gray-700 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {variations.map(variation => {
+                          const parsedAttrs = JSON.parse(variation.attributes);
+                          return (
+                            <tr key={variation.id} className="hover:bg-gray-50 transition-colors">
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-1">
+                                  {Object.entries(parsedAttrs).map(([key, val]) => (
+                                    <span key={key} className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[10px] font-bold">
+                                      {key}: {val as string}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`font-bold ${variation.quantity <= 5 ? 'text-red-500' : 'text-gray-900'}`}>
+                                  {variation.quantity}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <button
+                                  onClick={() => deleteVariation(variation.id)}
+                                  className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {variations.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="px-4 py-8 text-center text-gray-400 italic">
+                              No variations added yet.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

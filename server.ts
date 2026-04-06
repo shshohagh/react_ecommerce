@@ -209,6 +209,19 @@ async function initDb() {
       console.log("Wishlist table created.");
     }
 
+    const hasVariations = await db.schema.hasTable("product_variations");
+    if (!hasVariations) {
+      console.log("Creating product_variations table...");
+      await db.schema.createTable("product_variations", (table) => {
+        table.increments("id").primary();
+        table.integer("product_id").unsigned().references("id").inTable("products").onDelete("CASCADE");
+        table.text("attributes").notNullable(); // JSON string
+        table.integer("quantity").notNullable().defaultTo(0);
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
+      console.log("Product variations table created.");
+    }
+
     const hasCategories = await db.schema.hasTable("categories");
     if (!hasCategories) {
       await db.schema.createTable("categories", (table) => {
@@ -400,6 +413,64 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to submit review" });
+    }
+  });
+
+  // Product Variations (Public)
+  app.get("/api/products/:id/variations", async (req, res) => {
+    try {
+      const variations = await db("product_variations")
+        .where({ product_id: req.params.id })
+        .select("*");
+      res.json(variations);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch variations" });
+    }
+  });
+
+  // Product Variations (Admin)
+  app.post("/api/admin/products/:id/variations", authenticate, async (req, res) => {
+    const { attributes, quantity } = req.body;
+    if (!attributes || quantity === undefined) {
+      return res.status(400).json({ error: "Attributes and quantity are required" });
+    }
+
+    try {
+      const [id] = await db("product_variations").insert({
+        product_id: req.params.id,
+        attributes,
+        quantity,
+      });
+      const newVariation = await db("product_variations").where({ id }).first();
+      res.status(201).json(newVariation);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to create variation" });
+    }
+  });
+
+  app.put("/api/admin/variations/:id", authenticate, async (req, res) => {
+    const { attributes, quantity } = req.body;
+    try {
+      await db("product_variations")
+        .where({ id: req.params.id })
+        .update({ attributes, quantity });
+      const updatedVariation = await db("product_variations").where({ id: req.params.id }).first();
+      res.json(updatedVariation);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update variation" });
+    }
+  });
+
+  app.delete("/api/admin/variations/:id", authenticate, async (req, res) => {
+    try {
+      await db("product_variations").where({ id: req.params.id }).del();
+      res.json({ message: "Variation deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete variation" });
     }
   });
 

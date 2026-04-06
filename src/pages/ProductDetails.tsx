@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Product, Review } from '../types';
+import { Product, Review, ProductVariation } from '../types';
 import { formatPrice } from '../lib/utils';
-import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
 
@@ -12,6 +12,7 @@ export default function ProductDetails() {
   const { token, isAuthenticated } = useAuth();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [variations, setVariations] = useState<ProductVariation[]>([]);
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -27,6 +28,7 @@ export default function ProductDetails() {
   });
 
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
+  const [currentVariation, setCurrentVariation] = useState<ProductVariation | null>(null);
 
   const [reviewForm, setReviewForm] = useState({
     customer_name: '',
@@ -38,18 +40,21 @@ export default function ProductDetails() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [productRes, reviewsRes] = await Promise.all([
+        const [productRes, reviewsRes, variationsRes] = await Promise.all([
           fetch(`/api/products/${id}`),
-          fetch(`/api/products/${id}/reviews`)
+          fetch(`/api/products/${id}/reviews`),
+          fetch(`/api/products/${id}/variations`)
         ]);
 
         if (!productRes.ok) throw new Error('Product not found');
         
         const productData = await productRes.json();
         const reviewsData = await reviewsRes.json();
+        const variationsData = await variationsRes.json();
 
         setProduct(productData);
         setReviews(reviewsData);
+        setVariations(variationsData);
 
         if (isAuthenticated) {
           const wishlistRes = await fetch('/api/wishlist', {
@@ -69,6 +74,18 @@ export default function ProductDetails() {
 
     fetchData();
   }, [id, isAuthenticated, token]);
+
+  useEffect(() => {
+    if (Object.keys(selectedAttributes).length > 0) {
+      const match = variations.find(v => {
+        const vAttrs = JSON.parse(v.attributes);
+        return Object.entries(selectedAttributes).every(([key, val]) => vAttrs[key] === val);
+      });
+      setCurrentVariation(match || null);
+    } else {
+      setCurrentVariation(null);
+    }
+  }, [selectedAttributes, variations]);
 
   const toggleWishlist = async () => {
     if (!isAuthenticated) {
@@ -270,7 +287,16 @@ export default function ProductDetails() {
 
                   {product.attributes && (
                     <div className="space-y-4 mb-6">
-                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Select Options</h3>
+                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex justify-between items-center">
+                        Select Options
+                        {currentVariation && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                            currentVariation.quantity > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          }`}>
+                            {currentVariation.quantity > 0 ? `In Stock: ${currentVariation.quantity}` : 'Out of Stock'}
+                          </span>
+                        )}
+                      </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {Object.entries(JSON.parse(product.attributes)).map(([key, value]) => {
                           const options = (value as string).split(',').map(v => v.trim());
@@ -349,11 +375,11 @@ export default function ProductDetails() {
                   </div>
 
                   <button
-                    disabled={submitting}
+                    disabled={submitting || (currentVariation !== null && currentVariation.quantity === 0)}
                     type="submit"
                     className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25"
                   >
-                    {submitting ? 'Processing...' : 'Confirm Order'}
+                    {submitting ? 'Processing...' : (currentVariation !== null && currentVariation.quantity === 0 ? 'Out of Stock' : 'Confirm Order')}
                   </button>
                 </form>
               )}
