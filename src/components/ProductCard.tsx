@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Product } from '../types';
+import { Product, Review } from '../types';
 import { formatPrice } from '../lib/utils';
-import { ArrowRight, Heart } from 'lucide-react';
+import { ArrowRight, Heart, Star } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 interface ProductCardProps {
@@ -14,10 +14,31 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
   const { token, isAuthenticated } = useAuth();
   const [isWishlisted, setIsWishlisted] = useState(isWishlistedInitial);
   const [loading, setLoading] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [averageRating, setAverageRating] = useState<number>(0);
 
   useEffect(() => {
     setIsWishlisted(isWishlistedInitial);
   }, [isWishlistedInitial]);
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const res = await fetch(`/api/products/${product.id}/reviews`);
+        if (res.ok) {
+          const data = await res.json();
+          setReviews(data);
+          if (data.length > 0) {
+            const sum = data.reduce((acc: number, r: Review) => acc + r.rating, 0);
+            setAverageRating(sum / data.length);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch reviews:', err);
+      }
+    };
+    fetchReviews();
+  }, [product.id]);
 
   const toggleWishlist = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -85,6 +106,26 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
         <p className="text-gray-500 text-sm mb-4 line-clamp-2 flex-grow">
           {product.description}
         </p>
+        
+        <div className="flex items-center gap-1 mb-4">
+          <div className="flex items-center">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <Star
+                key={star}
+                className={`h-3.5 w-3.5 ${
+                  star <= Math.round(averageRating)
+                    ? 'text-amber-400 fill-amber-400'
+                    : 'text-gray-200 fill-gray-200'
+                }`}
+              />
+            ))}
+          </div>
+          <span className="text-xs font-bold text-gray-400 ml-1">
+            {averageRating > 0 ? averageRating.toFixed(1) : 'No reviews'}
+            {reviews.length > 0 && ` (${reviews.length})`}
+          </span>
+        </div>
+
         <div className="flex items-center justify-between mt-auto">
           <span className="text-xl font-bold text-indigo-600">{formatPrice(product.price)}</span>
           <Link
