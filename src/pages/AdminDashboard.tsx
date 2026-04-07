@@ -27,7 +27,8 @@ import {
   HardDrive,
   Copy,
   ExternalLink,
-  Tags
+  Tags,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -955,6 +956,14 @@ export default function AdminDashboard() {
             </h2>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/')}
+              className="p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-indigo-600 transition-all flex items-center gap-2"
+              title="Go to Website"
+            >
+              <Globe className="h-5 w-5" />
+              <span className="text-sm font-bold hidden sm:inline">View Site</span>
+            </button>
             <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold border-2 border-white shadow-sm">
               AD
             </div>

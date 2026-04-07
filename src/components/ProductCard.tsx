@@ -76,14 +76,14 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
   };
 
   return (
-    <div className="group bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col relative">
+    <div className="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col relative">
       <button
         onClick={toggleWishlist}
         disabled={loading}
         className={`absolute top-4 right-4 z-10 p-2 rounded-xl backdrop-blur-md transition-all duration-300 ${
           isWishlisted 
             ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
-            : 'bg-white/80 text-gray-400 hover:text-red-500 hover:bg-white shadow-sm'
+            : 'bg-white/80 dark:bg-gray-800/80 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-white dark:hover:bg-gray-700 shadow-sm'
         }`}
       >
         <Heart className={`h-5 w-5 ${isWishlisted ? 'fill-current' : ''}`} />
@@ -96,14 +96,14 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
           referrerPolicy="no-referrer"
         />
         {product.is_featured && (
-          <span className="absolute top-4 left-4 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
+          <span className="absolute top-4 left-4 bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider">
             Featured
           </span>
         )}
       </div>
       <div className="p-6 flex flex-col flex-grow">
-        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">{product.name}</h3>
-        <p className="text-gray-500 text-sm mb-4 line-clamp-2 flex-grow">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2 line-clamp-1">{product.name}</h3>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mb-4 line-clamp-2 flex-grow">
           {product.description}
         </p>
         
@@ -115,22 +115,22 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
                 className={`h-3.5 w-3.5 ${
                   star <= Math.round(averageRating)
                     ? 'text-amber-400 fill-amber-400'
-                    : 'text-gray-200 fill-gray-200'
+                    : 'text-gray-200 dark:text-gray-700 fill-gray-200 dark:fill-gray-700'
                 }`}
               />
             ))}
           </div>
-          <span className="text-xs font-bold text-gray-400 ml-1">
+          <span className="text-xs font-bold text-gray-400 dark:text-gray-500 ml-1">
             {averageRating > 0 ? averageRating.toFixed(1) : 'No reviews'}
             {reviews.length > 0 && ` (${reviews.length})`}
           </span>
         </div>
 
         <div className="flex items-center justify-between mt-auto">
-          <span className="text-xl font-bold text-indigo-600">{formatPrice(product.price)}</span>
+          <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{formatPrice(product.price)}</span>
           <Link
             to={`/product/${product.id}`}
-            className="inline-flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+            className="inline-flex items-center text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
           >
             Details
             <ArrowRight className="ml-1 h-4 w-4" />

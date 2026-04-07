@@ -177,17 +177,17 @@ export default function ProductDetails() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950 transition-colors duration-300">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
       </div>
     );
   }
 
   if (!product) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <h2 className="text-2xl font-bold text-gray-900">Product not found</h2>
-        <button onClick={() => navigate('/')} className="mt-4 text-indigo-600 hover:underline">
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center bg-white dark:bg-gray-950 transition-colors duration-300">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Product not found</h2>
+        <button onClick={() => navigate('/')} className="mt-4 text-indigo-600 dark:text-indigo-400 hover:underline">
           Back to home
         </button>
       </div>
@@ -198,7 +198,7 @@ export default function ProductDetails() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <button
         onClick={() => navigate(-1)}
-        className="inline-flex items-center text-sm font-semibold text-gray-500 hover:text-indigo-600 mb-8 transition-colors"
+        className="inline-flex items-center text-sm font-semibold text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 mb-8 transition-colors"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to collection
@@ -209,7 +209,7 @@ export default function ProductDetails() {
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="rounded-3xl overflow-hidden bg-gray-100"
+          className="rounded-3xl overflow-hidden bg-gray-100 dark:bg-gray-900"
         >
           <img
             src={product.image}
@@ -227,50 +227,50 @@ export default function ProductDetails() {
         >
           <div>
             <div className="flex items-start justify-between gap-4 mb-4">
-              <h1 className="text-4xl font-extrabold text-gray-900">{product.name}</h1>
+              <h1 className="text-4xl font-extrabold text-gray-900 dark:text-white">{product.name}</h1>
               <button
                 onClick={toggleWishlist}
                 disabled={wishlistLoading}
                 className={`p-3 rounded-2xl transition-all duration-300 ${
                   isWishlisted 
                     ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' 
-                    : 'bg-gray-100 text-gray-400 hover:text-red-500 hover:bg-red-50'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950'
                 }`}
               >
                 <Heart className={`h-6 w-6 ${isWishlisted ? 'fill-current' : ''}`} />
               </button>
             </div>
-            <p className="text-3xl font-bold text-indigo-600 mb-6">{formatPrice(product.price)}</p>
-            <div className="prose prose-indigo text-gray-500 max-w-none">
+            <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mb-6">{formatPrice(product.price)}</p>
+            <div className="prose prose-indigo dark:prose-invert text-gray-500 dark:text-gray-400 max-w-none">
               <p>{product.description}</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm">
-            <h2 className="text-xl font-bold text-gray-900 mb-6">Order Now</h2>
+          <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 shadow-sm transition-colors duration-300">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Order Now</h2>
 
             <AnimatePresence mode="wait">
               {success ? (
                 <motion.div
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-green-50 border border-green-100 rounded-2xl p-6 text-center"
+                  className="bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900 rounded-2xl p-6 text-center"
                 >
-                  <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                  <h3 className="text-lg font-bold text-green-900 mb-2">Order Placed Successfully!</h3>
-                  <p className="text-green-700 text-sm mb-4">Your Order ID is: <span className="font-bold">#{success.id}</span></p>
-                  <p className="text-green-700 text-sm mb-6">We'll contact you soon to confirm your delivery.</p>
+                  <CheckCircle2 className="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-green-900 dark:text-green-300 mb-2">Order Placed Successfully!</h3>
+                  <p className="text-green-700 dark:text-green-400 text-sm mb-4">Your Order ID is: <span className="font-bold">#{success.id}</span></p>
+                  <p className="text-green-700 dark:text-green-400 text-sm mb-6">We'll contact you soon to confirm your delivery.</p>
                   
                   <div className="flex flex-col gap-3">
                     <Link
                       to={`/track-order/${success.id}`}
-                      className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all text-center"
+                      className="w-full py-3 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all text-center"
                     >
                       Track Your Order
                     </Link>
                     <button
                       onClick={() => setSuccess(null)}
-                      className="text-sm font-bold text-green-700 hover:underline"
+                      className="text-sm font-bold text-green-700 dark:text-green-400 hover:underline"
                     >
                       Place another order
                     </button>
@@ -279,7 +279,7 @@ export default function ProductDetails() {
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {error && (
-                    <div className="bg-red-50 border border-red-100 text-red-600 text-sm p-4 rounded-xl flex items-center">
+                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 text-red-600 dark:text-red-400 text-sm p-4 rounded-xl flex items-center">
                       <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
                       {error}
                     </div>
@@ -287,11 +287,11 @@ export default function ProductDetails() {
 
                   {product.attributes && (
                     <div className="space-y-4 mb-6">
-                      <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider flex justify-between items-center">
+                      <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider flex justify-between items-center">
                         Select Options
                         {currentVariation && (
                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                            currentVariation.quantity > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                            currentVariation.quantity > 0 ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
                           }`}>
                             {currentVariation.quantity > 0 ? `In Stock: ${currentVariation.quantity}` : 'Out of Stock'}
                           </span>
@@ -302,7 +302,7 @@ export default function ProductDetails() {
                           const options = (value as string).split(',').map(v => v.trim());
                           return (
                             <div key={key} className="space-y-2">
-                              <label className="block text-xs font-bold text-gray-500">{key}</label>
+                              <label className="block text-xs font-bold text-gray-500 dark:text-gray-400">{key}</label>
                               <div className="flex flex-wrap gap-2">
                                 {options.map(opt => (
                                   <button
@@ -311,8 +311,8 @@ export default function ProductDetails() {
                                     onClick={() => setSelectedAttributes({ ...selectedAttributes, [key]: opt })}
                                     className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
                                       selectedAttributes[key] === opt
-                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-200'
-                                        : 'bg-white border-gray-200 text-gray-600 hover:border-indigo-600 hover:text-indigo-600'
+                                        ? 'bg-indigo-600 dark:bg-indigo-500 border-indigo-600 dark:border-indigo-500 text-white shadow-md shadow-indigo-200 dark:shadow-indigo-900/50'
+                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-indigo-600 dark:hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
                                     }`}
                                   >
                                     {opt}
@@ -327,49 +327,49 @@ export default function ProductDetails() {
                   )}
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Full Name</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
                     <input
                       required
                       type="text"
                       value={formData.customer_name}
                       onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                       placeholder="John Doe"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Email Address</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
                     <input
                       required
                       type="email"
                       value={formData.email}
                       onChange={e => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                       placeholder="john@example.com"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Phone Number</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
                     <input
                       required
                       type="tel"
                       value={formData.phone}
                       onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                       placeholder="+1 (555) 000-0000"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Delivery Address</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Delivery Address</label>
                     <textarea
                       required
                       rows={3}
                       value={formData.address}
                       onChange={e => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
                       placeholder="123 Street Name, City, Country"
                     />
                   </div>
@@ -377,7 +377,7 @@ export default function ProductDetails() {
                   <button
                     disabled={submitting || (currentVariation !== null && currentVariation.quantity === 0)}
                     type="submit"
-                    className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25"
+                    className="w-full py-4 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25"
                   >
                     {submitting ? 'Processing...' : (currentVariation !== null && currentVariation.quantity === 0 ? 'Out of Stock' : 'Confirm Order')}
                   </button>
@@ -392,16 +392,16 @@ export default function ProductDetails() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-16 mt-20">
         <div className="lg:col-span-2 space-y-8">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-              <MessageSquare className="mr-3 h-6 w-6 text-indigo-600" />
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+              <MessageSquare className="mr-3 h-6 w-6 text-indigo-600 dark:text-indigo-400" />
               Customer Reviews ({reviews.length})
             </h2>
           </div>
 
           <div className="space-y-6">
             {reviews.length === 0 ? (
-              <div className="bg-gray-50 rounded-3xl p-12 text-center border-2 border-dashed border-gray-200">
-                <p className="text-gray-500">No reviews yet. Be the first to share your thoughts!</p>
+              <div className="bg-gray-50 dark:bg-gray-900 rounded-3xl p-12 text-center border-2 border-dashed border-gray-200 dark:border-gray-800">
+                <p className="text-gray-500 dark:text-gray-400">No reviews yet. Be the first to share your thoughts!</p>
               </div>
             ) : (
               reviews.map((review) => (
@@ -409,16 +409,16 @@ export default function ProductDetails() {
                   key={review.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm"
+                  className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm"
                 >
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold mr-3">
+                      <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-bold mr-3">
                         {review.customer_name.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <h4 className="font-bold text-gray-900">{review.customer_name}</h4>
-                        <p className="text-xs text-gray-400">{new Date(review.created_at).toLocaleDateString()}</p>
+                        <h4 className="font-bold text-gray-900 dark:text-white">{review.customer_name}</h4>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(review.created_at).toLocaleDateString()}</p>
                       </div>
                     </div>
                     <div className="flex">
@@ -426,13 +426,13 @@ export default function ProductDetails() {
                         <Star
                           key={i}
                           className={`h-4 w-4 ${
-                            i < review.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200'
+                            i < review.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200 dark:text-gray-700'
                           }`}
                         />
                       ))}
                     </div>
                   </div>
-                  <p className="text-gray-600 leading-relaxed">{review.comment}</p>
+                  <p className="text-gray-600 dark:text-gray-300 leading-relaxed">{review.comment}</p>
                 </motion.div>
               ))
             )}
@@ -440,23 +440,23 @@ export default function ProductDetails() {
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-3xl border border-gray-100 p-8 shadow-sm sticky top-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Write a Review</h3>
+          <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 shadow-sm sticky top-8 transition-colors duration-300">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Write a Review</h3>
             <form onSubmit={handleReviewSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Your Name</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Your Name</label>
                 <input
                   required
                   type="text"
                   value={reviewForm.customer_name}
                   onChange={e => setReviewForm({ ...reviewForm, customer_name: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
                   placeholder="John Doe"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Rating</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Rating</label>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
@@ -467,7 +467,7 @@ export default function ProductDetails() {
                     >
                       <Star
                         className={`h-8 w-8 ${
-                          star <= reviewForm.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200'
+                          star <= reviewForm.rating ? 'text-amber-400 fill-amber-400' : 'text-gray-200 dark:text-gray-700'
                         }`}
                       />
                     </button>
@@ -476,13 +476,13 @@ export default function ProductDetails() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Your Comment</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Your Comment</label>
                 <textarea
                   required
                   rows={4}
                   value={reviewForm.comment}
                   onChange={e => setReviewForm({ ...reviewForm, comment: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
                   placeholder="What did you think about this product?"
                 />
               </div>
@@ -490,7 +490,7 @@ export default function ProductDetails() {
               <button
                 disabled={reviewSubmitting}
                 type="submit"
-                className="w-full py-4 bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 bg-gray-900 dark:bg-indigo-600 text-white font-bold rounded-xl hover:bg-black dark:hover:bg-indigo-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {reviewSubmitting ? 'Submitting...' : 'Submit Review'}
               </button>

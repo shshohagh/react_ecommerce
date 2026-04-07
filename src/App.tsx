@@ -6,13 +6,14 @@ import OrderTracking from './pages/OrderTracking';
 import Wishlist from './pages/Wishlist';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
+import { ThemeProvider } from './context/ThemeContext';
 
 function AppContent() {
   const location = useLocation();
   const isAdminDashboard = location.pathname === '/admin/dashboard';
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-white dark:bg-gray-950 flex flex-col transition-colors duration-300">
       {!isAdminDashboard && <Navbar />}
       <main className="flex-grow">
         <Routes>
@@ -32,35 +33,35 @@ function AppContent() {
 
 function Footer() {
   return (
-    <footer className="bg-white border-t border-gray-100 py-12">
+    <footer className="bg-white dark:bg-gray-950 border-t border-gray-100 dark:border-gray-800 py-12 transition-colors duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="col-span-1 md:col-span-2">
-            <h3 className="text-xl font-bold text-gray-900 mb-4">SwiftCart</h3>
-            <p className="text-gray-500 max-w-sm">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">SwiftCart</h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-sm">
               Your one-stop destination for premium essentials. We believe in quality, style, and exceptional customer service.
             </p>
           </div>
           <div>
-            <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Shop</h4>
+            <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4">Shop</h4>
             <ul className="space-y-2">
-              <li><a href="#" className="text-gray-500 hover:text-indigo-600 text-sm">New Arrivals</a></li>
-              <li><a href="#" className="text-gray-500 hover:text-indigo-600 text-sm">Featured</a></li>
-              <li><a href="#" className="text-gray-500 hover:text-indigo-600 text-sm">All Products</a></li>
+              <li><a href="#" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm">New Arrivals</a></li>
+              <li><a href="#" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm">Featured</a></li>
+              <li><a href="#" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm">All Products</a></li>
             </ul>
           </div>
           <div>
-            <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Support</h4>
+            <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4">Support</h4>
             <ul className="space-y-2">
-              <li><Link to="/track-order" className="text-gray-500 hover:text-indigo-600 text-sm">Track Order</Link></li>
-              <li><a href="#" className="text-gray-500 hover:text-indigo-600 text-sm">Contact Us</a></li>
-              <li><a href="#" className="text-gray-500 hover:text-indigo-600 text-sm">Shipping Policy</a></li>
-              <li><a href="#" className="text-gray-500 hover:text-indigo-600 text-sm">Returns & Exchanges</a></li>
+              <li><Link to="/track-order" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm">Track Order</Link></li>
+              <li><a href="#" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm">Contact Us</a></li>
+              <li><a href="#" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm">Shipping Policy</a></li>
+              <li><a href="#" className="text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 text-sm">Returns & Exchanges</a></li>
             </ul>
           </div>
         </div>
-        <div className="mt-12 pt-8 border-t border-gray-100 text-center">
-          <p className="text-gray-400 text-sm">
+        <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-800 text-center">
+          <p className="text-gray-400 dark:text-gray-500 text-sm">
             © {new Date().getFullYear()} SwiftCart Ecommerce. All rights reserved.
           </p>
         </div>
@@ -71,8 +72,10 @@ function Footer() {
 
 export default function App() {
   return (
-    <Router>
-      <AppContent />
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <AppContent />
+      </Router>
+    </ThemeProvider>
   );
 }
