@@ -1,0 +1,260 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
+import { formatPrice } from '../lib/utils';
+import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { motion } from 'motion/react';
+
+export default function Checkout() {
+  const { cart, clearCart, cartCount } = useCart();
+  const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState({
+    customer_name: '',
+    email: '',
+    phone: '',
+    address: '',
+    payment_method: 'cod'
+  });
+
+  const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      // In a real app, we would send the order to the backend here
+      // For now, we'll simulate a successful order
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      setOrderSuccess(true);
+      clearCart();
+    } catch (err) {
+      setError('Failed to place order. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (orderSuccess) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white dark:bg-gray-900 rounded-3xl p-12 shadow-xl border border-gray-100 dark:border-gray-800"
+        >
+          <div className="flex justify-center mb-6">
+            <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-full">
+              <CheckCircle2 className="h-16 w-16 text-green-500" />
+            </div>
+          </div>
+          <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4">Order Placed Successfully!</h2>
+          <p className="text-gray-500 dark:text-gray-400 mb-8 text-lg">
+            Thank you for your purchase. We've received your order and will begin processing it right away.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <button
+              onClick={() => navigate('/')}
+              className="px-8 py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
+            >
+              Back to Home
+            </button>
+            <button
+              onClick={() => navigate('/track-order')}
+              className="px-8 py-4 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
+            >
+              Track Order
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (cartCount === 0) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Your cart is empty</h2>
+        <button
+          onClick={() => navigate('/')}
+          className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all"
+        >
+          Go Shopping
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <button
+        onClick={() => navigate('/cart')}
+        className="flex items-center text-sm font-bold text-gray-500 hover:text-indigo-600 mb-8 transition-colors"
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Cart
+      </button>
+
+      <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-12">Checkout</h1>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+        {/* Checkout Form */}
+        <div className="space-y-8">
+          <section className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 shadow-sm">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                <Truck className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Shipping Information</h2>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
+                  <input
+                    required
+                    type="text"
+                    name="customer_name"
+                    value={formData.customer_name}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="John Doe"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+                  <input
+                    required
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="john@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                  <input
+                    required
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="+1 (555) 000-0000"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Address</label>
+                  <textarea
+                    required
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                    placeholder="123 Main St, City, Country"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-8">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                    <CreditCard className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">Payment Method</h2>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="relative flex items-center p-4 border-2 border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl cursor-pointer">
+                    <input type="radio" name="payment_method" value="cod" defaultChecked className="hidden" />
+                    <div className="flex-grow">
+                      <p className="font-bold text-gray-900 dark:text-white">Cash on Delivery</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Pay when you receive your order</p>
+                    </div>
+                    <CheckCircle2 className="h-6 w-6 text-indigo-600" />
+                  </label>
+                  <div className="p-4 border-2 border-gray-100 dark:border-gray-800 rounded-2xl opacity-50 cursor-not-allowed">
+                    <p className="font-bold text-gray-400">Credit / Debit Card</p>
+                    <p className="text-xs text-gray-400">Coming soon</p>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5" />
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 mt-8"
+              >
+                {submitting ? 'Placing Order...' : 'Complete Purchase'}
+              </button>
+            </form>
+          </section>
+        </div>
+
+        {/* Order Summary */}
+        <div className="lg:col-span-1">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 shadow-sm sticky top-24">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Order Summary</h2>
+            <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+              {cart.map((item) => (
+                <div key={`${item.id}-${JSON.stringify(item.selectedAttributes)}`} className="flex gap-4">
+                  <div className="h-16 w-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
+                    <img src={item.image} alt={item.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <div className="flex-grow">
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white line-clamp-1">{item.name}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Qty: {item.quantity}</p>
+                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{formatPrice(item.price * item.quantity)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-4 pt-6 border-t border-gray-50 dark:border-gray-800">
+              <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                <span>Subtotal</span>
+                <span className="font-bold text-gray-900 dark:text-white">{formatPrice(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-gray-500 dark:text-gray-400">
+                <span>Shipping</span>
+                <span className="font-bold text-green-600">Free</span>
+              </div>
+              <div className="pt-4 border-t border-gray-50 dark:border-gray-800 flex justify-between">
+                <span className="text-lg font-bold text-gray-900 dark:text-white">Total</span>
+                <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">{formatPrice(subtotal)}</span>
+              </div>
+            </div>
+
+            <div className="mt-8 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl flex items-start gap-3">
+              <ShieldCheck className="h-5 w-5 text-indigo-600 mt-0.5" />
+              <p className="text-xs text-indigo-700 dark:text-indigo-300">
+                Your transaction is secure. We use industry-standard encryption to protect your data.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

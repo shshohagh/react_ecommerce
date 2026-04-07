@@ -7,6 +7,7 @@ import Wishlist from './pages/Wishlist';
 import AdminLogin from './pages/AdminLogin';
 import AdminDashboard from './pages/AdminDashboard';
 import Cart from './pages/Cart';
+import Checkout from './pages/Checkout';
 import { ThemeProvider } from './context/ThemeContext';
 import { CartProvider } from './context/CartContext';
 
@@ -25,6 +26,7 @@ function AppContent() {
           <Route path="/track-order/:id" element={<OrderTracking />} />
           <Route path="/wishlist" element={<Wishlist />} />
           <Route path="/cart" element={<Cart />} />
+          <Route path="/checkout" element={<Checkout />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>

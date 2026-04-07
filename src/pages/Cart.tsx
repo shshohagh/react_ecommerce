@@ -124,7 +124,7 @@ export default function Cart() {
               </div>
             </div>
             <button
-              onClick={() => alert('Checkout functionality coming soon!')}
+              onClick={() => navigate('/checkout')}
               className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
             >
               <CreditCard className="h-5 w-5" />
