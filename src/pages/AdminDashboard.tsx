@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
-import { Product, Order, Review, Category, Brand, Attribute, AttributeValue, ProductVariation } from '../types';
+import { Product, Order, Review, Category, Brand, Attribute, AttributeValue, ProductVariation, ShippingArea } from '../types';
 import { formatPrice } from '../lib/utils';
 import {
   Plus,
@@ -34,7 +34,7 @@ import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands' | 'attributes'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands' | 'attributes' | 'shipping-areas'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDashboardSubMenuOpen, setIsDashboardSubMenuOpen] = useState(false);
   const [isProductsSubMenuOpen, setIsProductsSubMenuOpen] = useState(false);
@@ -45,6 +45,7 @@ export default function AdminDashboard() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [attributeValues, setAttributeValues] = useState<AttributeValue[]>([]);
+  const [shippingAreas, setShippingAreas] = useState<ShippingArea[]>([]);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,10 +55,12 @@ export default function AdminDashboard() {
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isAttributeModalOpen, setIsAttributeModalOpen] = useState(false);
   const [isAttributeValueModalOpen, setIsAttributeValueModalOpen] = useState(false);
+  const [isShippingAreaModalOpen, setIsShippingAreaModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [editingBrand, setEditingBrand] = useState<Brand | null>(null);
   const [editingAttribute, setEditingAttribute] = useState<Attribute | null>(null);
+  const [editingShippingArea, setEditingShippingArea] = useState<ShippingArea | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
@@ -96,6 +99,11 @@ export default function AdminDashboard() {
   const [attributeForm, setAttributeForm] = useState({
     name: '',
     slug: ''
+  });
+
+  const [shippingAreaForm, setShippingAreaForm] = useState({
+    name: '',
+    cost: ''
   });
 
   const [attributeValueForm, setAttributeValueForm] = useState({
@@ -163,7 +171,7 @@ export default function AdminDashboard() {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, reviewRes, fileRes, catRes, brandRes, attrRes, attrValRes] = await Promise.all([
+      const [prodRes, orderRes, reviewRes, fileRes, catRes, brandRes, attrRes, attrValRes, shipRes] = await Promise.all([
         fetch('/api/products'),
         fetch('/api/admin/orders', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -185,7 +193,8 @@ export default function AdminDashboard() {
         }),
         fetch('/api/admin/attribute-values', {
           headers: { 'Authorization': `Bearer ${token}` }
-        })
+        }),
+        fetch('/api/shipping-areas')
       ]);
 
       if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401 || catRes.status === 401 || brandRes.status === 401 || attrRes.status === 401 || attrValRes.status === 401) {
@@ -202,6 +211,7 @@ export default function AdminDashboard() {
       const brandData = await brandRes.json();
       const attrData = await attrRes.json();
       const attrValData = await attrValRes.json();
+      const shipData = await shipRes.json();
 
       setProducts(prodData);
       setOrders(orderData);
@@ -211,6 +221,7 @@ export default function AdminDashboard() {
       setBrands(brandData);
       setAttributes(attrData);
       setAttributeValues(attrValData);
+      setShippingAreas(shipData);
     } catch (err) {
       console.error(err);
     } finally {
@@ -297,6 +308,50 @@ export default function AdminDashboard() {
       if (res.ok) {
         fetchAll();
       }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleShippingAreaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const method = editingShippingArea ? 'PUT' : 'POST';
+    const url = editingShippingArea
+      ? `/api/admin/shipping-areas/${editingShippingArea.id}`
+      : '/api/admin/shipping-areas';
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...shippingAreaForm,
+          cost: parseFloat(shippingAreaForm.cost)
+        })
+      });
+
+      if (res.ok) {
+        setIsShippingAreaModalOpen(false);
+        setEditingShippingArea(null);
+        setShippingAreaForm({ name: '', cost: '' });
+        fetchAll();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const deleteShippingArea = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this shipping area?')) return;
+    try {
+      const res = await fetch(`/api/admin/shipping-areas/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -929,6 +984,14 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('file-manager')}
               icon={<HardDrive className="h-5 w-5" />}
               label="File Manager"
+              isOpen={isSidebarOpen}
+            />
+
+            <SidebarItem 
+              active={activeTab === 'shipping-areas'} 
+              onClick={() => setActiveTab('shipping-areas')}
+              icon={<Truck className="h-5 w-5" />}
+              label="Shipping Areas"
               isOpen={isSidebarOpen}
             />
           </div>
@@ -1761,10 +1824,144 @@ export default function AdminDashboard() {
                       </div>
                     </div>
                   )}
+
+                  {activeTab === 'shipping-areas' && (
+                    <div className="space-y-6">
+                      {/* Shipping Areas Header */}
+                      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                          <h2 className="text-2xl font-bold text-gray-900">Shipping Area Management</h2>
+                          <p className="text-gray-500 text-sm">Manage shipping costs for different areas.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => {
+                              setEditingShippingArea(null);
+                              setShippingAreaForm({ name: '', cost: '' });
+                              setIsShippingAreaModalOpen(true);
+                            }}
+                            className="inline-flex items-center px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/25"
+                          >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Shipping Area
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Shipping Areas Table */}
+                      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50/50 border-b border-gray-100">
+                              <tr>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Area Name</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Cost (BDT)</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Created At</th>
+                                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50">
+                              {shippingAreas.map(area => (
+                                <tr key={area.id} className="hover:bg-gray-50/50 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <div className="text-sm font-bold text-gray-900">{area.name}</div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="text-sm font-bold text-indigo-600">BDT {area.cost}</div>
+                                  </td>
+                                  <td className="px-6 py-4 text-sm text-gray-500">
+                                    {new Date(area.created_at).toLocaleDateString()}
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <button
+                                        onClick={() => {
+                                          setEditingShippingArea(area);
+                                          setShippingAreaForm({ name: area.name, cost: area.cost.toString() });
+                                          setIsShippingAreaModalOpen(true);
+                                        }}
+                                        className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                                        title="Edit Area"
+                                      >
+                                        <Edit className="h-5 w-5" />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteShippingArea(area.id)}
+                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                        title="Delete Area"
+                                      >
+                                        <Trash2 className="h-5 w-5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
+
+      {/* Shipping Area Modal */}
+      {isShippingAreaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="px-8 py-6 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">
+                {editingShippingArea ? 'Edit Shipping Area' : 'Add New Shipping Area'}
+              </h3>
+              <button onClick={() => setIsShippingAreaModalOpen(false)} className="text-gray-400 hover:text-gray-500">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <form onSubmit={handleShippingAreaSubmit} className="p-8 space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Area Name</label>
+                <input
+                  required
+                  type="text"
+                  value={shippingAreaForm.name}
+                  onChange={e => setShippingAreaForm({ ...shippingAreaForm, name: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. Inside Dhaka"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-2">Shipping Cost (BDT)</label>
+                <input
+                  required
+                  type="number"
+                  step="0.01"
+                  value={shippingAreaForm.cost}
+                  onChange={e => setShippingAreaForm({ ...shippingAreaForm, cost: e.target.value })}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none"
+                  placeholder="e.g. 80"
+                />
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsShippingAreaModalOpen(false)}
+                  className="flex-1 px-6 py-3 rounded-xl border border-gray-200 text-gray-600 font-bold hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
+                >
+                  {editingShippingArea ? 'Update' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Category Modal */}
       {isCategoryModalOpen && (

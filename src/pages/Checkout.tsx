@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../lib/utils';
-import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
+import { ShippingArea } from '../types';
 
 export default function Checkout() {
   const { cart, clearCart, cartCount } = useCart();
@@ -11,20 +12,49 @@ export default function Checkout() {
   const [submitting, setSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shippingAreas, setShippingAreas] = useState<ShippingArea[]>([]);
+  const [selectedArea, setSelectedArea] = useState<ShippingArea | null>(null);
 
   const [formData, setFormData] = useState({
     customer_name: '',
     email: '',
     phone: '',
     address: '',
-    payment_method: 'cod'
+    payment_method: 'cod',
+    shipping_area_id: ''
   });
 
+  useEffect(() => {
+    const fetchShippingAreas = async () => {
+      try {
+        const res = await fetch('/api/shipping-areas');
+        if (res.ok) {
+          const data = await res.json();
+          setShippingAreas(data);
+          if (data.length > 0) {
+            setSelectedArea(data[0]);
+            setFormData(prev => ({ ...prev, shipping_area_id: data[0].id.toString() }));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch shipping areas:', err);
+      }
+    };
+    fetchShippingAreas();
+  }, []);
+
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const shippingCost = selectedArea ? selectedArea.cost : 0;
+  const total = subtotal + shippingCost;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    
+    if (name === 'shipping_area_id') {
+      const area = shippingAreas.find(a => a.id.toString() === value);
+      if (area) setSelectedArea(area);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -158,6 +188,28 @@ export default function Checkout() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Area</label>
+                  <div className="relative">
+                    <select
+                      required
+                      name="shipping_area_id"
+                      value={formData.shipping_area_id}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all appearance-none"
+                    >
+                      <option value="" disabled>Select Shipping Area</option>
+                      {shippingAreas.map(area => (
+                        <option key={area.id} value={area.id}>
+                          {area.name} (BDT {area.cost})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
+                <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Address</label>
                   <textarea
                     required
@@ -238,11 +290,11 @@ export default function Checkout() {
               </div>
               <div className="flex justify-between text-gray-500 dark:text-gray-400">
                 <span>Shipping</span>
-                <span className="font-bold text-green-600">Free</span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatPrice(shippingCost)}</span>
               </div>
               <div className="pt-4 border-t border-gray-50 dark:border-gray-800 flex justify-between">
                 <span className="text-lg font-bold text-gray-900 dark:text-white">Total</span>
-                <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">{formatPrice(subtotal)}</span>
+                <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">{formatPrice(total)}</span>
               </div>
             </div>
 

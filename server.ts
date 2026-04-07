@@ -305,6 +305,24 @@ async function initDb() {
         ]);
       }
     }
+
+    const hasShippingAreas = await db.schema.hasTable("shipping_areas");
+    if (!hasShippingAreas) {
+      console.log("Creating shipping_areas table...");
+      await db.schema.createTable("shipping_areas", (table) => {
+        table.increments("id").primary();
+        table.string("name").unique().notNullable();
+        table.decimal("cost", 10, 2).notNullable();
+        table.timestamp("created_at").defaultTo(db.fn.now());
+      });
+      console.log("Shipping areas table created.");
+      
+      // Insert default shipping areas
+      await db("shipping_areas").insert([
+        { name: "Inside Dhaka", cost: 80.00 },
+        { name: "Outside Dhaka", cost: 160.00 }
+      ]);
+    }
   } catch (error) {
     console.error("Error in initDb:", error);
     throw error;
@@ -705,6 +723,52 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to fetch attribute values" });
+    }
+  });
+
+  // Shipping Areas (Public)
+  app.get("/api/shipping-areas", async (req, res) => {
+    try {
+      const areas = await db("shipping_areas").select("*").orderBy("name", "asc");
+      res.json(areas);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to fetch shipping areas" });
+    }
+  });
+
+  // Shipping Areas (Admin)
+  app.post("/api/admin/shipping-areas", authenticate, async (req, res) => {
+    const { name, cost } = req.body;
+    if (!name || cost === undefined) return res.status(400).json({ error: "Name and cost are required" });
+    
+    try {
+      const [id] = await db("shipping_areas").insert({ name, cost });
+      res.status(201).json({ id, name, cost });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to create shipping area" });
+    }
+  });
+
+  app.put("/api/admin/shipping-areas/:id", authenticate, async (req, res) => {
+    const { name, cost } = req.body;
+    try {
+      await db("shipping_areas").where({ id: req.params.id }).update({ name, cost });
+      res.json({ message: "Shipping area updated" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to update shipping area" });
+    }
+  });
+
+  app.delete("/api/admin/shipping-areas/:id", authenticate, async (req, res) => {
+    try {
+      await db("shipping_areas").where({ id: req.params.id }).del();
+      res.json({ message: "Shipping area deleted" });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Failed to delete shipping area" });
     }
   });
 

@@ -85,6 +85,13 @@ export interface Category {
   created_at: string;
 }
 
+export interface ShippingArea {
+  id: number;
+  name: string;
+  cost: number;
+  created_at: string;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;
