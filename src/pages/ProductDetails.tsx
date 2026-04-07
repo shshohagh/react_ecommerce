@@ -5,11 +5,13 @@ import { formatPrice } from '../lib/utils';
 import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../context/CartContext';
 
 export default function ProductDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { token, isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
@@ -374,13 +376,23 @@ export default function ProductDetails() {
                     />
                   </div>
 
-                  <button
-                    disabled={submitting || (currentVariation !== null && currentVariation.quantity === 0)}
-                    type="submit"
-                    className="w-full py-4 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25"
-                  >
-                    {submitting ? 'Processing...' : (currentVariation !== null && currentVariation.quantity === 0 ? 'Out of Stock' : 'Confirm Order')}
-                  </button>
+                  <div className="grid grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => addToCart(product, selectedAttributes)}
+                      disabled={submitting || (currentVariation !== null && currentVariation.quantity === 0)}
+                      className="w-full py-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Add to Cart
+                    </button>
+                    <button
+                      disabled={submitting || (currentVariation !== null && currentVariation.quantity === 0)}
+                      type="submit"
+                      className="w-full py-4 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25"
+                    >
+                      {submitting ? 'Processing...' : (currentVariation !== null && currentVariation.quantity === 0 ? 'Out of Stock' : 'Confirm Order')}
+                    </button>
+                  </div>
                 </form>
               )}
             </AnimatePresence>

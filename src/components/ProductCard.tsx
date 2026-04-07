@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Product, Review } from '../types';
 import { formatPrice } from '../lib/utils';
-import { ArrowRight, Heart, Star } from 'lucide-react';
+import { ArrowRight, Heart, Star, ShoppingCart, Zap } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../context/CartContext';
 
 interface ProductCardProps {
   product: Product;
@@ -12,6 +13,7 @@ interface ProductCardProps {
 
 export default function ProductCard({ product, isWishlistedInitial = false }: ProductCardProps) {
   const { token, isAuthenticated } = useAuth();
+  const { addToCart } = useCart();
   const [isWishlisted, setIsWishlisted] = useState(isWishlistedInitial);
   const [loading, setLoading] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -126,14 +128,35 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
           </span>
         </div>
 
-        <div className="flex items-center justify-between mt-auto">
+        <div className="flex items-center justify-between mb-4">
           <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{formatPrice(product.price)}</span>
           <Link
             to={`/product/${product.id}`}
-            className="inline-flex items-center text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+            className="inline-flex items-center text-sm font-semibold text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
           >
             Details
             <ArrowRight className="ml-1 h-4 w-4" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mt-auto">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              addToCart(product);
+            }}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all"
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            Add to Cart
+          </button>
+          <Link
+            to={`/product/${product.id}`}
+            className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Order Now
           </Link>
         </div>
       </div>
