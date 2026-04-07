@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, getDocs, addDoc, Timestamp, query, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../lib/utils';
 import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin } from 'lucide-react';
@@ -27,14 +29,12 @@ export default function Checkout() {
   useEffect(() => {
     const fetchShippingAreas = async () => {
       try {
-        const res = await fetch('/api/shipping-areas');
-        if (res.ok) {
-          const data = await res.json();
-          setShippingAreas(data);
-          if (data.length > 0) {
-            setSelectedArea(data[0]);
-            setFormData(prev => ({ ...prev, shipping_area_id: data[0].id.toString() }));
-          }
+        const snap = await getDocs(query(collection(db, 'shipping_areas'), orderBy('name', 'asc')));
+        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShippingArea));
+        setShippingAreas(data);
+        if (data.length > 0) {
+          setSelectedArea(data[0]);
+          setFormData(prev => ({ ...prev, shipping_area_id: data[0].id }));
         }
       } catch (err) {
         console.error('Failed to fetch shipping areas:', err);
@@ -52,7 +52,7 @@ export default function Checkout() {
     setFormData(prev => ({ ...prev, [name]: value }));
     
     if (name === 'shipping_area_id') {
-      const area = shippingAreas.find(a => a.id.toString() === value);
+      const area = shippingAreas.find(a => a.id === value);
       if (area) setSelectedArea(area);
     }
   };
@@ -63,10 +63,24 @@ export default function Checkout() {
     setError(null);
 
     try {
-      // In a real app, we would send the order to the backend here
-      // For now, we'll simulate a successful order
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      const orderData = {
+        ...formData,
+        items: cart.map(item => ({
+          product_id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          image: item.image,
+          attributes: item.selectedAttributes
+        })),
+        subtotal,
+        shipping_cost: shippingCost,
+        total,
+        status: 'pending',
+        created_at: Timestamp.now()
+      };
+
+      await addDoc(collection(db, 'orders'), orderData);
       setOrderSuccess(true);
       clearCart();
     } catch (err) {

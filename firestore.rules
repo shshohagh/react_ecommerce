@@ -1,0 +1,202 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: products
+    // Document ID: productId
+    // Fields:
+    //   - name: string (required)
+    //   - description: string
+    //   - price: number (required)
+    //   - image: string
+    //   - category: string
+    //   - brand: string
+    //   - attributes: string (JSON)
+    //   - is_featured: bool
+    //   - created_at: timestamp
+    //
+    // Collection: orders
+    // Document ID: orderId
+    // Fields:
+    //   - customer_name: string (required)
+    //   - email: string (email format)
+    //   - phone: string (required)
+    //   - address: string (required)
+    //   - product_id: string (required)
+    //   - attributes: string (JSON)
+    //   - status: string (enum: pending, confirmed, delivered)
+    //   - estimated_delivery: timestamp
+    //   - created_at: timestamp
+    //   - shipping_area_id: string
+    //
+    // Collection: reviews
+    // Document ID: reviewId
+    // Fields:
+    //   - product_id: string (required)
+    //   - customer_name: string (required)
+    //   - rating: number (required, 1-5)
+    //   - comment: string (required)
+    //   - created_at: timestamp
+    //
+    // Collection: shipping_areas
+    // Document ID: areaId
+    // Fields:
+    //   - name: string (required)
+    //   - cost: number (required)
+    //   - created_at: timestamp
+    //
+    // Collection: categories
+    // Document ID: categoryId
+    // Fields:
+    //   - name: string (required)
+    //   - slug: string (required)
+    //   - created_at: timestamp
+    //
+    // Collection: brands
+    // Document ID: brandId
+    // Fields:
+    //   - name: string (required)
+    //   - slug: string (required)
+    //   - created_at: timestamp
+    //
+    // Collection: attributes
+    // Document ID: attributeId
+    // Fields:
+    //   - name: string (required)
+    //   - slug: string (required)
+    //   - created_at: timestamp
+    //
+    // Collection: attribute_values
+    // Document ID: valueId
+    // Fields:
+    //   - attribute_id: string (required)
+    //   - value: string (required)
+    //   - created_at: timestamp
+    //
+    // Collection: product_variations
+    // Document ID: variationId
+    // Fields:
+    //   - product_id: string (required)
+    //   - attributes: string (JSON)
+    //   - quantity: number (required)
+    //   - created_at: timestamp
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required, email format)
+    //   - role: string (enum: admin, user)
+    //   - created_at: timestamp
+    //
+    // Collection: wishlist
+    // Document ID: wishlistId
+    // Fields:
+    //   - user_id: string (required)
+    //   - product_id: string (required)
+    //   - created_at: timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "shshohagh4@gmail.com" && request.auth.token.email_verified == true)); // Default admin
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidRating(rating) {
+      return rating is number && rating >= 1 && rating <= 5;
+    }
+
+    function isValidStatus(status) {
+      return status in ['pending', 'confirmed', 'delivered'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAdmin();
+      allow create: if true; // Allow anyone to place an order
+      allow update, delete: if isAdmin();
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if true; // Allow anyone to post a review
+      allow update, delete: if isAdmin();
+    }
+
+    match /shipping_areas/{areaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /brands/{brandId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /attributes/{attributeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /attribute_values/{valueId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /product_variations/{variationId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /wishlist/{wishlistId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.user_id || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.user_id || isAdmin());
+    }
+
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { collection, getDoc, getDocs, query, where, doc, orderBy, limit } from 'firebase/firestore';
+import { db } from '../firebase';
 import { motion } from 'motion/react';
 import { Package, Truck, CheckCircle, Clock, ArrowLeft, MapPin, Phone, User, ChevronRight } from 'lucide-react';
 import { Order } from '../types';
@@ -29,58 +31,74 @@ export default function OrderTracking() {
     }
   }, [urlId]);
 
-  const fetchOrder = (id: string) => {
+  const fetchOrder = async (id: string) => {
     setLoading(true);
     setError(null);
     setSearchResults([]);
-    fetch(`/api/orders/${id}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Order not found');
-        return res.json();
-      })
-      .then(data => {
-        setOrder(data);
-        setLoading(false);
-        if (urlId !== id) {
-          navigate(`/track-order/${id}`, { replace: true });
-        }
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-        setOrder(null);
-      });
+    try {
+      const docSnap = await getDoc(doc(db, 'orders', id));
+      if (!docSnap.exists()) throw new Error('Order not found');
+      
+      const data = { id: docSnap.id, ...docSnap.data() } as Order;
+      setOrder(data);
+      if (urlId !== id) {
+        navigate(`/track-order/${id}`, { replace: true });
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setOrder(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const query = searchQuery.trim();
-    if (!query) return;
+    const qStr = searchQuery.trim();
+    if (!qStr) return;
 
     setLoading(true);
     setError(null);
     setOrder(null);
     setSearchResults([]);
 
-    fetch(`/api/orders/search?q=${encodeURIComponent(query)}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.length === 0) {
-          setError('No orders found matching your search.');
-        } else if (data.length === 1) {
-          fetchOrder(data[0].id.toString());
-        } else {
-          setSearchResults(data);
-          if (urlId) {
-            navigate('/track-order', { replace: true });
-          }
+    try {
+      // Try fetching by exact ID first
+      const docSnap = await getDoc(doc(db, 'orders', qStr));
+      if (docSnap.exists()) {
+        fetchOrder(docSnap.id);
+        return;
+      }
+
+      // If not ID, search by phone or name (limited search in Firestore)
+      const qPhone = query(collection(db, 'orders'), where('phone', '==', qStr), limit(10));
+      const qName = query(collection(db, 'orders'), where('customer_name', '==', qStr), limit(10));
+      
+      const [phoneSnap, nameSnap] = await Promise.all([getDocs(qPhone), getDocs(qName)]);
+      const results = [
+        ...phoneSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order)),
+        ...nameSnap.docs.map(d => ({ id: d.id, ...d.data() } as Order))
+      ];
+
+      // Remove duplicates
+      const uniqueResults = results.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+
+      if (uniqueResults.length === 0) {
+        setError('No orders found matching your search.');
+      } else if (uniqueResults.length === 1) {
+        fetchOrder(uniqueResults[0].id);
+      } else {
+        setSearchResults(uniqueResults);
+        if (urlId) {
+          navigate('/track-order', { replace: true });
         }
-        setLoading(false);
-      })
-      .catch(err => {
-        setError('An error occurred while searching.');
-        setLoading(false);
-      });
+      }
+    } catch (err) {
+      console.error(err);
+      setError('An error occurred while searching.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!urlId && !order && !loading && searchResults.length === 0) {

@@ -1,5 +1,5 @@
 export interface Product {
-  id: number;
+  id: string;
   name: string;
   description: string;
   price: number;
@@ -8,52 +8,53 @@ export interface Product {
   brand: string;
   attributes?: string; // JSON string
   is_featured: boolean;
+  created_at: string;
 }
 
 export interface ProductVariation {
-  id: number;
-  product_id: number;
+  id: string;
+  product_id: string;
   attributes: string; // JSON string
   quantity: number;
   created_at: string;
 }
 
 export interface Brand {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   created_at: string;
 }
 
 export interface Attribute {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   created_at: string;
 }
 
 export interface AttributeValue {
-  id: number;
-  attribute_id: number;
+  id: string;
+  attribute_id: string;
   value: string;
   created_at: string;
 }
 
 export interface OrderHistory {
-  id: number;
-  order_id: number;
+  id: string;
+  order_id: string;
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
   description?: string;
   created_at: string;
 }
 
 export interface Order {
-  id: number;
+  id: string;
   customer_name: string;
   email?: string;
   phone: string;
   address: string;
-  product_id: number;
+  product_id: string;
   product_name?: string;
   product_price?: number;
   attributes?: string; // JSON string
@@ -64,14 +65,14 @@ export interface Order {
 }
 
 export interface User {
-  id: number;
+  id: string;
   name: string;
   email: string;
 }
 
 export interface Review {
-  id: number;
-  product_id: number;
+  id: string;
+  product_id: string;
   customer_name: string;
   rating: number;
   comment: string;
@@ -79,14 +80,14 @@ export interface Review {
 }
 
 export interface Category {
-  id: number;
+  id: string;
   name: string;
   slug: string;
   created_at: string;
 }
 
 export interface ShippingArea {
-  id: number;
+  id: string;
   name: string;
   cost: number;
   created_at: string;

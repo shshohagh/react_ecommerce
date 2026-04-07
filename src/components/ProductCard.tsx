@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { collection, getDocs, query, where, addDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Product, Review } from '../types';
 import { formatPrice } from '../lib/utils';
 import { ArrowRight, Heart, Star, ShoppingCart, Zap } from 'lucide-react';
@@ -12,7 +14,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, isWishlistedInitial = false }: ProductCardProps) {
-  const { token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { addToCart } = useCart();
   const [isWishlisted, setIsWishlisted] = useState(isWishlistedInitial);
   const [loading, setLoading] = useState(false);
@@ -26,14 +28,13 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
   useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const res = await fetch(`/api/products/${product.id}/reviews`);
-        if (res.ok) {
-          const data = await res.json();
-          setReviews(data);
-          if (data.length > 0) {
-            const sum = data.reduce((acc: number, r: Review) => acc + r.rating, 0);
-            setAverageRating(sum / data.length);
-          }
+        const q = query(collection(db, 'reviews'), where('product_id', '==', product.id));
+        const snap = await getDocs(q);
+        const data = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review));
+        setReviews(data);
+        if (data.length > 0) {
+          const sum = data.reduce((acc: number, r: Review) => acc + r.rating, 0);
+          setAverageRating(sum / data.length);
         }
       } catch (err) {
         console.error('Failed to fetch reviews:', err);
@@ -46,7 +47,7 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
     e.preventDefault();
     e.stopPropagation();
     
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user) {
       alert('Please log in to add items to your wishlist.');
       return;
     }
@@ -54,21 +55,21 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
     setLoading(true);
     try {
       if (isWishlisted) {
-        const res = await fetch(`/api/wishlist/${product.id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) setIsWishlisted(false);
+        const q = query(
+          collection(db, 'wishlist'), 
+          where('user_id', '==', user.id), 
+          where('product_id', '==', product.id)
+        );
+        const snap = await getDocs(q);
+        await Promise.all(snap.docs.map(d => deleteDoc(doc(db, 'wishlist', d.id))));
+        setIsWishlisted(false);
       } else {
-        const res = await fetch('/api/wishlist', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ product_id: product.id })
+        await addDoc(collection(db, 'wishlist'), {
+          user_id: user.id,
+          product_id: product.id,
+          created_at: Timestamp.now()
         });
-        if (res.ok) setIsWishlisted(true);
+        setIsWishlisted(true);
       }
     } catch (err) {
       console.error('Wishlist error:', err);

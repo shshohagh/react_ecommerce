@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
+import { db } from '../firebase';
 import ProductCard from '../components/ProductCard';
 import { Product } from '../types';
 import { ShoppingBag, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -30,9 +32,9 @@ const SLIDES = [
 ];
 
 export default function Home() {
-  const { token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
-  const [wishlistIds, setWishlistIds] = useState<number[]>([]);
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -53,18 +55,13 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const productsRes = await fetch('/api/products');
-        const productsData = await productsRes.json();
+        const productsSnap = await getDocs(query(collection(db, 'products'), orderBy('created_at', 'desc')));
+        const productsData = productsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product));
         setProducts(productsData);
 
-        if (isAuthenticated) {
-          const wishlistRes = await fetch('/api/wishlist', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (wishlistRes.ok) {
-            const wishlistData = await wishlistRes.json();
-            setWishlistIds(wishlistData.map((p: Product) => p.id));
-          }
+        if (isAuthenticated && user) {
+          const wishlistSnap = await getDocs(query(collection(db, 'wishlist'), where('user_id', '==', user.id)));
+          setWishlistIds(wishlistSnap.docs.map(doc => doc.data().product_id));
         }
       } catch (err) {
         console.error(err);
@@ -74,7 +71,7 @@ export default function Home() {
     };
 
     fetchData();
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, user]);
 
   const categories = ['All', ...Array.from(new Set(products.map(p => p.category || 'Uncategorized')))];
 

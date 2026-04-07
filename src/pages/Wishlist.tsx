@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { collection, getDocs, query, where, deleteDoc, doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Heart, ShoppingBag, ArrowLeft, Trash2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { Product } from '../types';
@@ -7,29 +9,32 @@ import { formatPrice } from '../lib/utils';
 import { motion } from 'motion/react';
 
 export default function Wishlist() {
-  const { token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [wishlist, setWishlist] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && user) {
       fetchWishlist();
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, user]);
 
   const fetchWishlist = async () => {
+    if (!user) return;
     try {
-      const res = await fetch('/api/wishlist', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!res.ok) throw new Error('Failed to fetch wishlist');
-      const data = await res.json();
-      setWishlist(data);
+      const q = query(collection(db, 'wishlist'), where('user_id', '==', user.id));
+      const snap = await getDocs(q);
+      const productIds = snap.docs.map(doc => doc.data().product_id);
+      
+      const products = await Promise.all(productIds.map(async (pid) => {
+        const pSnap = await getDoc(doc(db, 'products', pid));
+        return pSnap.exists() ? { id: pSnap.id, ...pSnap.data() } as Product : null;
+      }));
+
+      setWishlist(products.filter(p => p !== null) as Product[]);
     } catch (err) {
       setError('Could not load your wishlist.');
     } finally {
@@ -37,17 +42,13 @@ export default function Wishlist() {
     }
   };
 
-  const removeFromWishlist = async (productId: number) => {
+  const removeFromWishlist = async (productId: string) => {
+    if (!user) return;
     try {
-      const res = await fetch(`/api/wishlist/${productId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (res.ok) {
-        setWishlist(prev => prev.filter(p => p.id !== productId));
-      }
+      const q = query(collection(db, 'wishlist'), where('user_id', '==', user.id), where('product_id', '==', productId));
+      const snap = await getDocs(q);
+      await Promise.all(snap.docs.map(d => deleteDoc(doc(db, 'wishlist', d.id))));
+      setWishlist(prev => prev.filter(p => p.id !== productId));
     } catch (err) {
       console.error('Failed to remove from wishlist', err);
     }

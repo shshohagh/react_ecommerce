@@ -17,16 +17,7 @@ export default function AdminLogin() {
     setError(null);
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Login failed');
-
-      login(data.token, data.user);
+      await login(email, password);
       navigate('/admin/dashboard');
     } catch (err: any) {
       setError(err.message);

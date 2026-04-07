@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, listAll, deleteObject, getMetadata } from 'firebase/storage';
+import { db, storage } from '../firebase';
 import { Product, Order, Review, Category, Brand, Attribute, AttributeValue, ProductVariation, ShippingArea } from '../types';
 import { formatPrice } from '../lib/utils';
 import {
@@ -63,17 +66,23 @@ export default function AdminDashboard() {
   const [editingShippingArea, setEditingShippingArea] = useState<ShippingArea | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('All');
-  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { token, logout } = useAuth();
+  const { user, firebaseUser, logout, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/admin/login');
   };
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/admin/login');
+    }
+  }, [user, authLoading, navigate]);
 
   const [productForm, setProductForm] = useState({
     name: '',
@@ -96,32 +105,31 @@ export default function AdminDashboard() {
     slug: ''
   });
 
-  const [attributeForm, setAttributeForm] = useState({
-    name: '',
-    slug: ''
-  });
-
   const [shippingAreaForm, setShippingAreaForm] = useState({
     name: '',
     cost: ''
   });
 
+  const [attributeForm, setAttributeForm] = useState({
+    name: '',
+    slug: ''
+  });
+
   const [attributeValueForm, setAttributeValueForm] = useState({
-    attribute_id: 0,
+    attribute_id: '',
     value: ''
   });
   const [variationForm, setVariationForm] = useState({
     attributes: {} as Record<string, string>,
-    quantity: 0
+    quantity: ''
   });
 
-  const fetchVariations = async (productId: number) => {
+  const fetchVariations = async (productId: string) => {
     try {
-      const res = await fetch(`/api/products/${productId}/variations`);
-      if (res.ok) {
-        const data = await res.json();
-        setVariations(data);
-      }
+      const q = query(collection(db, 'product_variations'), orderBy('created_at', 'desc'));
+      const snap = await getDocs(q);
+      const allVariations = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductVariation));
+      setVariations(allVariations.filter(v => v.product_id === productId));
     } catch (err) {
       console.error('Failed to fetch variations:', err);
     }
@@ -132,96 +140,75 @@ export default function AdminDashboard() {
     if (!editingProduct) return;
 
     try {
-      const res = await fetch(`/api/admin/products/${editingProduct.id}/variations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          attributes: JSON.stringify(variationForm.attributes),
-          quantity: variationForm.quantity
-        })
+      await addDoc(collection(db, 'product_variations'), {
+        product_id: editingProduct.id,
+        attributes: JSON.stringify(variationForm.attributes),
+        quantity: parseInt(variationForm.quantity as string),
+        created_at: Timestamp.now()
       });
-
-      if (res.ok) {
-        setVariationForm({ attributes: {}, quantity: 0 });
-        fetchVariations(editingProduct.id);
-      }
+      setVariationForm({ attributes: {}, quantity: '' });
+      fetchVariations(editingProduct.id);
     } catch (err) {
       console.error(err);
     }
   };
 
-  const deleteVariation = async (id: number) => {
+  const deleteVariation = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this variation?')) return;
     try {
-      const res = await fetch(`/api/admin/variations/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok && editingProduct) {
-        fetchVariations(editingProduct.id);
-      }
+      await deleteDoc(doc(db, 'product_variations', id));
+      if (editingProduct) fetchVariations(editingProduct.id);
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchFiles = async () => {
+    try {
+      const storageRef = ref(storage, 'uploads');
+      const res = await listAll(storageRef);
+      const fileData = await Promise.all(
+        res.items.map(async (item) => {
+          const url = await getDownloadURL(item);
+          const metadata = await getMetadata(item);
+          return {
+            name: item.name,
+            size: metadata.size,
+            created_at: metadata.timeCreated,
+            url: url
+          };
+        })
+      );
+      setFiles(fileData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+    } catch (err) {
+      console.error('Failed to fetch files:', err);
     }
   };
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, reviewRes, fileRes, catRes, brandRes, attrRes, attrValRes, shipRes] = await Promise.all([
-        fetch('/api/products'),
-        fetch('/api/admin/orders', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/admin/reviews', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/admin/files', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/admin/categories', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/admin/brands', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/admin/attributes', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/admin/attribute-values', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        }),
-        fetch('/api/shipping-areas')
+      const [prodSnap, orderSnap, reviewSnap, catSnap, brandSnap, attrSnap, attrValSnap, shipSnap] = await Promise.all([
+        getDocs(query(collection(db, 'products'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'orders'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'reviews'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'categories'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'brands'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'attributes'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'attribute_values'), orderBy('created_at', 'desc'))),
+        getDocs(query(collection(db, 'shipping_areas'), orderBy('name', 'asc')))
       ]);
 
-      if (prodRes.status === 401 || orderRes.status === 401 || reviewRes.status === 401 || fileRes.status === 401 || catRes.status === 401 || brandRes.status === 401 || attrRes.status === 401 || attrValRes.status === 401) {
-        logout();
-        navigate('/admin/login');
-        return;
-      }
-
-      const prodData = await prodRes.json();
-      const orderData = await orderRes.json();
-      const reviewData = await reviewRes.json();
-      const fileData = await fileRes.json();
-      const catData = await catRes.json();
-      const brandData = await brandRes.json();
-      const attrData = await attrRes.json();
-      const attrValData = await attrValRes.json();
-      const shipData = await shipRes.json();
-
-      setProducts(prodData);
-      setOrders(orderData);
-      setReviews(reviewData);
-      setFiles(fileData);
-      setCategories(catData);
-      setBrands(brandData);
-      setAttributes(attrData);
-      setAttributeValues(attrValData);
-      setShippingAreas(shipData);
+      setProducts(prodSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
+      setOrders(orderSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Order)));
+      setReviews(reviewSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review)));
+      setCategories(catSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Category)));
+      setBrands(brandSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Brand)));
+      setAttributes(attrSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Attribute)));
+      setAttributeValues(attrValSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttributeValue)));
+      setShippingAreas(shipSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShippingArea)));
+      
+      await fetchFiles();
     } catch (err) {
       console.error(err);
     } finally {
@@ -229,28 +216,75 @@ export default function AdminDashboard() {
     }
   };
 
-  useEffect(() => {
-    if (!token) {
-      navigate('/admin/login');
-      return;
-    }
-    fetchAll();
-  }, [token]);
+  const handleShippingAreaSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const data = {
+        name: shippingAreaForm.name,
+        cost: parseFloat(shippingAreaForm.cost)
+      };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (editingShippingArea) {
+        await updateDoc(doc(db, 'shipping_areas', editingShippingArea.id), data);
+      } else {
+        await addDoc(collection(db, 'shipping_areas'), data);
+      }
+      setIsShippingAreaModalOpen(false);
+      setEditingShippingArea(null);
+      setShippingAreaForm({ name: '', cost: '' });
+      fetchAll();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save shipping area');
+    }
+  };
+
+  const deleteShippingArea = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this shipping area?')) return;
+    try {
+      await deleteDoc(doc(db, 'shipping_areas', id));
+      fetchAll();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete shipping area');
+    }
+  };
+
+  const openShippingAreaModal = (area?: ShippingArea) => {
+    if (area) {
+      setEditingShippingArea(area);
+      setShippingAreaForm({ name: area.name, cost: area.cost.toString() });
+    } else {
+      setEditingShippingArea(null);
+      setShippingAreaForm({ name: '', cost: '' });
+    }
+    setIsShippingAreaModalOpen(true);
+  };
+
+  useEffect(() => {
+    if (user) {
+      fetchAll();
+    }
+  }, [user]);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Image size must be less than 2MB');
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image size must be less than 5MB');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setProductForm({ ...productForm, image: reader.result as string });
-    };
-    reader.readAsDataURL(file);
+    try {
+      const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setProductForm({ ...productForm, image: url });
+    } catch (err) {
+      console.error('Image upload failed:', err);
+      alert('Image upload failed');
+    }
   };
 
   const handleProductSubmit = async (e: React.FormEvent) => {
@@ -265,153 +299,84 @@ export default function AdminDashboard() {
       : '/api/admin/products';
 
     try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+      if (editingProduct) {
+        await updateDoc(doc(db, 'products', editingProduct.id), {
           ...productForm,
           price: parseFloat(productForm.price as string),
           attributes: JSON.stringify(productForm.attributes)
-        })
-      });
-
-      if (res.ok) {
-        setIsModalOpen(false);
-        setEditingProduct(null);
-        setProductForm({ 
-          name: '', 
-          description: '', 
-          price: '', 
-          image: '', 
-          category: 'Uncategorized', 
-          brand: 'No Brand',
-          attributes: {},
-          is_featured: false 
         });
-        fetchAll();
+      } else {
+        await addDoc(collection(db, 'products'), {
+          ...productForm,
+          price: parseFloat(productForm.price as string),
+          attributes: JSON.stringify(productForm.attributes),
+          created_at: Timestamp.now()
+        });
       }
+
+      setIsModalOpen(false);
+      setEditingProduct(null);
+      setProductForm({ 
+        name: '', 
+        description: '', 
+        price: '', 
+        image: '', 
+        category: 'Uncategorized', 
+        brand: 'No Brand',
+        attributes: {},
+        is_featured: false 
+      });
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const deleteReview = async (id: number) => {
+  const deleteReview = async (id: string) => {
     if (!confirm('Are you sure you want to delete this review?')) return;
     try {
-      const res = await fetch(`/api/admin/reviews/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchAll();
-      }
+      await deleteDoc(doc(db, 'reviews', id));
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleShippingAreaSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const method = editingShippingArea ? 'PUT' : 'POST';
-    const url = editingShippingArea
-      ? `/api/admin/shipping-areas/${editingShippingArea.id}`
-      : '/api/admin/shipping-areas';
-
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...shippingAreaForm,
-          cost: parseFloat(shippingAreaForm.cost)
-        })
-      });
-
-      if (res.ok) {
-        setIsShippingAreaModalOpen(false);
-        setEditingShippingArea(null);
-        setShippingAreaForm({ name: '', cost: '' });
-        fetchAll();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const deleteShippingArea = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this shipping area?')) return;
-    try {
-      const res = await fetch(`/api/admin/shipping-areas/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) fetchAll();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const deleteCategory = async (id: number) => {
+  const deleteCategory = async (id: string) => {
     if (!confirm('Are you sure you want to delete this category?')) return;
     try {
-      const res = await fetch(`/api/admin/categories/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchAll();
-      }
+      await deleteDoc(doc(db, 'categories', id));
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const deleteBrand = async (id: number) => {
+  const deleteBrand = async (id: string) => {
     if (!confirm('Are you sure you want to delete this brand?')) return;
     try {
-      const res = await fetch(`/api/admin/brands/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchAll();
-      }
+      await deleteDoc(doc(db, 'brands', id));
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const deleteAttribute = async (id: number) => {
+  const deleteAttribute = async (id: string) => {
     if (!confirm('Are you sure you want to delete this attribute?')) return;
     try {
-      const res = await fetch(`/api/admin/attributes/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchAll();
-      }
+      await deleteDoc(doc(db, 'attributes', id));
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
   };
 
-  const deleteAttributeValue = async (id: number) => {
+  const deleteAttributeValue = async (id: string) => {
     if (!confirm('Are you sure you want to delete this value?')) return;
     try {
-      const res = await fetch(`/api/admin/attribute-values/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchAll();
-      }
+      await deleteDoc(doc(db, 'attribute_values', id));
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -468,7 +433,7 @@ export default function AdminDashboard() {
     setIsAttributeModalOpen(true);
   };
 
-  const openAttributeValueModal = (attributeId: number) => {
+  const openAttributeValueModal = (attributeId: string) => {
     setAttributeValueForm({
       attribute_id: attributeId,
       value: ''
@@ -478,23 +443,19 @@ export default function AdminDashboard() {
 
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = editingCategory ? `/api/admin/categories/${editingCategory.id}` : '/api/admin/categories';
-    const method = editingCategory ? 'PUT' : 'POST';
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(categoryForm)
-      });
-
-      if (res.ok) {
-        setIsCategoryModalOpen(false);
-        fetchAll();
+      if (editingCategory) {
+        await updateDoc(doc(db, 'categories', editingCategory.id), categoryForm);
+      } else {
+        await addDoc(collection(db, 'categories'), {
+          ...categoryForm,
+          created_at: Timestamp.now()
+        });
       }
+      setIsCategoryModalOpen(false);
+      setEditingCategory(null);
+      setCategoryForm({ name: '', slug: '' });
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -502,23 +463,19 @@ export default function AdminDashboard() {
 
   const handleBrandSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = editingBrand ? `/api/admin/brands/${editingBrand.id}` : '/api/admin/brands';
-    const method = editingBrand ? 'PUT' : 'POST';
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(brandForm)
-      });
-
-      if (res.ok) {
-        setIsBrandModalOpen(false);
-        fetchAll();
+      if (editingBrand) {
+        await updateDoc(doc(db, 'brands', editingBrand.id), brandForm);
+      } else {
+        await addDoc(collection(db, 'brands'), {
+          ...brandForm,
+          created_at: Timestamp.now()
+        });
       }
+      setIsBrandModalOpen(false);
+      setEditingBrand(null);
+      setBrandForm({ name: '', slug: '' });
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -526,23 +483,19 @@ export default function AdminDashboard() {
 
   const handleAttributeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const url = editingAttribute ? `/api/admin/attributes/${editingAttribute.id}` : '/api/admin/attributes';
-    const method = editingAttribute ? 'PUT' : 'POST';
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(attributeForm)
-      });
-
-      if (res.ok) {
-        setIsAttributeModalOpen(false);
-        fetchAll();
+      if (editingAttribute) {
+        await updateDoc(doc(db, 'attributes', editingAttribute.id), attributeForm);
+      } else {
+        await addDoc(collection(db, 'attributes'), {
+          ...attributeForm,
+          created_at: Timestamp.now()
+        });
       }
+      setIsAttributeModalOpen(false);
+      setEditingAttribute(null);
+      setAttributeForm({ name: '', slug: '' });
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -551,19 +504,13 @@ export default function AdminDashboard() {
   const handleAttributeValueSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('/api/admin/attribute-values', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(attributeValueForm)
+      await addDoc(collection(db, 'attribute_values'), {
+        ...attributeValueForm,
+        created_at: Timestamp.now()
       });
-
-      if (res.ok) {
-        setIsAttributeValueModalOpen(false);
-        fetchAll();
-      }
+      setIsAttributeValueModalOpen(false);
+      setAttributeValueForm({ attribute_id: '', value: '' });
+      fetchAll();
     } catch (err) {
       console.error(err);
     }
@@ -572,15 +519,12 @@ export default function AdminDashboard() {
   const deleteFile = async (filename: string) => {
     if (!confirm('Are you sure you want to delete this file?')) return;
     try {
-      const res = await fetch(`/api/admin/files/${filename}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.ok) {
-        fetchAll();
-      }
+      const fileRef = ref(storage, `uploads/${filename}`);
+      await deleteObject(fileRef);
+      await fetchFiles();
     } catch (err) {
-      console.error(err);
+      console.error('Failed to delete file:', err);
+      alert('Failed to delete file');
     }
   };
 
@@ -588,37 +532,20 @@ export default function AdminDashboard() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
-      const res = await fetch('/api/admin/files/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      if (res.ok) {
-        fetchAll();
-      } else {
-        const err = await res.json();
-        alert(`Upload failed: ${err.error}`);
-      }
+      const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
+      await uploadBytes(storageRef, file);
+      await fetchFiles();
     } catch (err) {
-      console.error(err);
-      alert('An error occurred during upload.');
+      console.error('Upload failed:', err);
+      alert('Upload failed');
     }
   };
 
-  const deleteProduct = async (id: number) => {
+  const deleteProduct = async (id: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
     try {
-      await fetch(`/api/admin/products/${id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      await deleteDoc(doc(db, 'products', id));
       fetchAll();
     } catch (err) {
       console.error(err);
@@ -630,29 +557,16 @@ export default function AdminDashboard() {
     if (!confirm(`Are you sure you want to delete ${selectedProductIds.length} products?`)) return;
 
     try {
-      const res = await fetch('/api/admin/products/bulk', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ ids: selectedProductIds })
-      });
-
-      if (res.ok) {
-        setSelectedProductIds([]);
-        fetchAll();
-      } else {
-        const err = await res.json();
-        alert(`Bulk delete failed: ${err.error}`);
-      }
+      await Promise.all(selectedProductIds.map(id => deleteDoc(doc(db, 'products', id))));
+      setSelectedProductIds([]);
+      fetchAll();
     } catch (err) {
       console.error(err);
       alert('An error occurred during bulk deletion.');
     }
   };
 
-  const toggleProductSelection = (id: number) => {
+  const toggleProductSelection = (id: string) => {
     setSelectedProductIds(prev => 
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
@@ -666,16 +580,9 @@ export default function AdminDashboard() {
     }
   };
 
-  const updateOrderStatus = async (id: number, status: string) => {
+  const updateOrderStatus = async (id: string, status: string) => {
     try {
-      await fetch(`/api/admin/orders/${id}/status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ status })
-      });
+      await updateDoc(doc(db, 'orders', id), { status });
       fetchAll();
     } catch (err) {
       console.error(err);
@@ -689,7 +596,7 @@ export default function AdminDashboard() {
     let parsedAttributes = {};
     try {
       if (product.attributes) {
-        parsedAttributes = JSON.parse(product.attributes);
+        parsedAttributes = typeof product.attributes === 'string' ? JSON.parse(product.attributes) : product.attributes;
       }
     } catch (e) {
       console.error("Failed to parse attributes", e);
@@ -722,34 +629,22 @@ export default function AdminDashboard() {
           price: parseFloat(row.price),
           image: row.image,
           category: row.category || 'Uncategorized',
-          is_featured: row.is_featured === 'true' || row.is_featured === '1'
+          brand: row.brand || 'No Brand',
+          is_featured: row.is_featured === 'true' || row.is_featured === '1',
+          created_at: Timestamp.now()
         }));
 
-        // Basic validation
-        const validData = importedData.filter(p => p.name && !isNaN(p.price));
+        const validData = importedData.filter((p: any) => p.name && !isNaN(p.price));
 
         if (validData.length === 0) {
-          alert('No valid products found in CSV. Please check the format (name, description, price, image, category, is_featured).');
+          alert('No valid products found in CSV.');
           return;
         }
 
         try {
-          const res = await fetch('/api/admin/products/bulk', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(validData)
-          });
-
-          if (res.ok) {
-            alert(`Successfully imported ${validData.length} products!`);
-            fetchAll();
-          } else {
-            const err = await res.json();
-            alert(`Import failed: ${err.error}`);
-          }
+          await Promise.all(validData.map(p => addDoc(collection(db, 'products'), p)));
+          alert(`Successfully imported ${validData.length} products!`);
+          fetchAll();
         } catch (err) {
           console.error(err);
           alert('An error occurred during import.');

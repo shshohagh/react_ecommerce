@@ -1,0 +1,155 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A product available for purchase.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Product name" },
+        "description": { "type": "string", "description": "Product description" },
+        "price": { "type": "number", "description": "Product price" },
+        "image": { "type": "string", "description": "Product image URL or base64" },
+        "category": { "type": "string", "description": "Product category name" },
+        "brand": { "type": "string", "description": "Product brand name" },
+        "attributes": { "type": "string", "description": "JSON string of product attributes" },
+        "is_featured": { "type": "boolean", "description": "Whether the product is featured" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "price"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A customer order.",
+      "type": "object",
+      "properties": {
+        "customer_name": { "type": "string", "description": "Customer's full name" },
+        "email": { "type": "string", "format": "email", "description": "Customer's email" },
+        "phone": { "type": "string", "description": "Customer's phone number" },
+        "address": { "type": "string", "description": "Shipping address" },
+        "product_id": { "type": "string", "description": "ID of the product ordered" },
+        "attributes": { "type": "string", "description": "JSON string of selected attributes" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "delivered"], "description": "Order status" },
+        "estimated_delivery": { "type": "string", "format": "date-time", "description": "Estimated delivery date" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Order timestamp" },
+        "shipping_area_id": { "type": "string", "description": "ID of the shipping area" }
+      },
+      "required": ["customer_name", "phone", "address", "product_id"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A product review.",
+      "type": "object",
+      "properties": {
+        "product_id": { "type": "string", "description": "ID of the product reviewed" },
+        "customer_name": { "type": "string", "description": "Customer's name" },
+        "rating": { "type": "number", "description": "Rating from 1 to 5" },
+        "comment": { "type": "string", "description": "Review comment" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Review timestamp" }
+      },
+      "required": ["product_id", "customer_name", "rating", "comment"]
+    },
+    "ShippingArea": {
+      "title": "ShippingArea",
+      "description": "A shipping area with its cost.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Area name" },
+        "cost": { "type": "number", "description": "Shipping cost" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "cost"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "A product category.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Category name" },
+        "slug": { "type": "string", "description": "Category slug" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Brand": {
+      "title": "Brand",
+      "description": "A product brand.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Brand name" },
+        "slug": { "type": "string", "description": "Brand slug" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "slug"]
+    },
+    "Attribute": {
+      "title": "Attribute",
+      "description": "A product attribute (e.g., Color).",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Attribute name" },
+        "slug": { "type": "string", "description": "Attribute slug" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "slug"]
+    },
+    "AttributeValue": {
+      "title": "AttributeValue",
+      "description": "A value for a product attribute.",
+      "type": "object",
+      "properties": {
+        "attribute_id": { "type": "string", "description": "ID of the parent attribute" },
+        "value": { "type": "string", "description": "Attribute value" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["attribute_id", "value"]
+    },
+    "ProductVariation": {
+      "title": "ProductVariation",
+      "description": "A variation of a product (e.g., Red/Large).",
+      "type": "object",
+      "properties": {
+        "product_id": { "type": "string", "description": "ID of the parent product" },
+        "attributes": { "type": "string", "description": "JSON string of attributes for this variation" },
+        "quantity": { "type": "number", "description": "Stock quantity" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["product_id", "attributes", "quantity"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user profile.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "User's name" },
+        "email": { "type": "string", "format": "email", "description": "User's email" },
+        "role": { "type": "string", "enum": ["admin", "user"], "description": "User's role" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["name", "email"]
+    },
+    "Wishlist": {
+      "title": "Wishlist",
+      "description": "A product in a user's wishlist.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "ID of the user" },
+        "product_id": { "type": "string", "description": "ID of the product" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["user_id", "product_id"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": { "schema": "Product", "description": "Collection of products" },
+    "/orders/{orderId}": { "schema": "Order", "description": "Collection of orders" },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Collection of reviews" },
+    "/shipping_areas/{areaId}": { "schema": "ShippingArea", "description": "Collection of shipping areas" },
+    "/categories/{categoryId}": { "schema": "Category", "description": "Collection of categories" },
+    "/brands/{brandId}": { "schema": "Brand", "description": "Collection of brands" },
+    "/attributes/{attributeId}": { "schema": "Attribute", "description": "Collection of attributes" },
+    "/attribute_values/{valueId}": { "schema": "AttributeValue", "description": "Collection of attribute values" },
+    "/product_variations/{variationId}": { "schema": "ProductVariation", "description": "Collection of product variations" },
+    "/users/{userId}": { "schema": "User", "description": "Collection of user profiles" },
+    "/wishlist/{wishlistId}": { "schema": "Wishlist", "description": "Collection of wishlist items" }
+  }
+}

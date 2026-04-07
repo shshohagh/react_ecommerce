@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { collection, getDoc, getDocs, query, where, addDoc, doc, Timestamp, orderBy, deleteDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 import { Product, Review, ProductVariation } from '../types';
 import { formatPrice } from '../lib/utils';
 import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart, Info } from 'lucide-react';
@@ -10,7 +12,7 @@ import { useCart } from '../context/CartContext';
 export default function ProductDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { token, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { addToCart } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -19,7 +21,7 @@ export default function ProductDetails() {
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<{ id: number } | null>(null);
+  const [success, setSuccess] = useState<{ id: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
@@ -41,31 +43,23 @@ export default function ProductDetails() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!id) return;
       try {
-        const [productRes, reviewsRes, variationsRes] = await Promise.all([
-          fetch(`/api/products/${id}`),
-          fetch(`/api/products/${id}/reviews`),
-          fetch(`/api/products/${id}/variations`)
-        ]);
-
-        if (!productRes.ok) throw new Error('Product not found');
+        const productSnap = await getDoc(doc(db, 'products', id));
+        if (!productSnap.exists()) throw new Error('Product not found');
         
-        const productData = await productRes.json();
-        const reviewsData = await reviewsRes.json();
-        const variationsData = await variationsRes.json();
-
+        const productData = { id: productSnap.id, ...productSnap.data() } as Product;
         setProduct(productData);
-        setReviews(reviewsData);
-        setVariations(variationsData);
 
-        if (isAuthenticated) {
-          const wishlistRes = await fetch('/api/wishlist', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (wishlistRes.ok) {
-            const wishlistData = await wishlistRes.json();
-            setIsWishlisted(wishlistData.some((p: Product) => p.id === parseInt(id!)));
-          }
+        const reviewsSnap = await getDocs(query(collection(db, 'reviews'), where('product_id', '==', id), orderBy('created_at', 'desc')));
+        setReviews(reviewsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Review)));
+
+        const variationsSnap = await getDocs(query(collection(db, 'product_variations'), where('product_id', '==', id)));
+        setVariations(variationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProductVariation)));
+
+        if (isAuthenticated && user) {
+          const wishlistSnap = await getDocs(query(collection(db, 'wishlist'), where('user_id', '==', user.id), where('product_id', '==', id)));
+          setIsWishlisted(!wishlistSnap.empty);
         }
       } catch (err) {
         console.error(err);
@@ -75,12 +69,12 @@ export default function ProductDetails() {
     };
 
     fetchData();
-  }, [id, isAuthenticated, token]);
+  }, [id, isAuthenticated, user]);
 
   useEffect(() => {
     if (Object.keys(selectedAttributes).length > 0) {
       const match = variations.find(v => {
-        const vAttrs = JSON.parse(v.attributes);
+        const vAttrs = typeof v.attributes === 'string' ? JSON.parse(v.attributes) : v.attributes;
         return Object.entries(selectedAttributes).every(([key, val]) => vAttrs[key] === val);
       });
       setCurrentVariation(match || null);
@@ -90,7 +84,7 @@ export default function ProductDetails() {
   }, [selectedAttributes, variations]);
 
   const toggleWishlist = async () => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !user || !id) {
       alert('Please log in to add items to your wishlist.');
       return;
     }
@@ -98,21 +92,17 @@ export default function ProductDetails() {
     setWishlistLoading(true);
     try {
       if (isWishlisted) {
-        const res = await fetch(`/api/wishlist/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) setIsWishlisted(false);
+        const q = query(collection(db, 'wishlist'), where('user_id', '==', user.id), where('product_id', '==', id));
+        const snap = await getDocs(q);
+        await Promise.all(snap.docs.map(d => deleteDoc(doc(db, 'wishlist', d.id))));
+        setIsWishlisted(false);
       } else {
-        const res = await fetch('/api/wishlist', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ product_id: parseInt(id!) })
+        await addDoc(collection(db, 'wishlist'), {
+          user_id: user.id,
+          product_id: id,
+          created_at: Timestamp.now()
         });
-        if (res.ok) setIsWishlisted(true);
+        setIsWishlisted(true);
       }
     } catch (err) {
       console.error('Wishlist error:', err);
@@ -122,29 +112,25 @@ export default function ProductDetails() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-// ... existing handleSubmit ...
     e.preventDefault();
+    if (!id || !product) return;
     setSubmitting(true);
     setError(null);
 
     try {
-      const res = await fetch('/api/orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          product_id: parseInt(id!),
-          attributes: JSON.stringify(selectedAttributes)
-        })
-      });
+      const orderData = {
+        ...formData,
+        product_id: id,
+        product_name: product.name,
+        product_price: product.price,
+        product_image: product.image,
+        attributes: JSON.stringify(selectedAttributes),
+        status: 'pending',
+        created_at: Timestamp.now()
+      };
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to place order');
-      }
-
-      const data = await res.json();
-      setSuccess({ id: data.id });
+      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      setSuccess({ id: docRef.id });
       setFormData({ customer_name: '', email: '', phone: '', address: '' });
     } catch (err: any) {
       setError(err.message);
@@ -155,18 +141,18 @@ export default function ProductDetails() {
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!id) return;
     setReviewSubmitting(true);
 
     try {
-      const res = await fetch(`/api/products/${id}/reviews`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(reviewForm)
-      });
+      const reviewData = {
+        ...reviewForm,
+        product_id: id,
+        created_at: Timestamp.now()
+      };
 
-      if (!res.ok) throw new Error('Failed to submit review');
-
-      const newReview = await res.json();
+      const docRef = await addDoc(collection(db, 'reviews'), reviewData);
+      const newReview = { id: docRef.id, ...reviewData } as unknown as Review;
       setReviews([newReview, ...reviews]);
       setReviewForm({ customer_name: '', rating: 5, comment: '' });
     } catch (err) {
