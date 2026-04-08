@@ -163,6 +163,13 @@ export default function ProductDetails() {
     }
   };
 
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    if (typeof date === 'string') return new Date(date).toLocaleDateString();
+    if (date && typeof date === 'object' && 'toDate' in date) return date.toDate().toLocaleDateString();
+    return new Date(date).toLocaleDateString();
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-950 transition-colors duration-300">
@@ -416,7 +423,7 @@ export default function ProductDetails() {
                       </div>
                       <div>
                         <h4 className="font-bold text-gray-900 dark:text-white">{review.customer_name}</h4>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(review.created_at).toLocaleDateString()}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500">{formatDate(review.created_at)}</p>
                       </div>
                     </div>
                     <div className="flex">

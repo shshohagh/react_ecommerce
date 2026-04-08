@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Lock, AlertCircle } from 'lucide-react';
+import { ShoppingCart, Lock, AlertCircle, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 export default function AdminLogin() {
@@ -8,7 +8,7 @@ export default function AdminLogin() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -18,6 +18,23 @@ export default function AdminLogin() {
 
     try {
       await login(email, password);
+      navigate('/admin/dashboard');
+    } catch (err: any) {
+      if (err.code === 'auth/invalid-credential') {
+        setError('Invalid email or password. If you haven\'t created an account yet, please use Google Login or create one in the Firebase Console.');
+      } else {
+        setError(err.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await loginWithGoogle();
       navigate('/admin/dashboard');
     } catch (err: any) {
       setError(err.message);
@@ -79,12 +96,40 @@ export default function AdminLogin() {
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500 uppercase tracking-wider font-medium">Or continue with</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            type="button"
+            className="w-full py-4 bg-white border border-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" referrerPolicy="no-referrer" />
+            Sign in with Google
+          </button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-4">
           <p className="text-xs text-gray-400">
-            Demo Credentials: admin@example.com / admin123
+            Note: For first-time setup, please use Google Login with your admin email.
           </p>
+          <div className="pt-4 border-t border-gray-100">
+            <button 
+              onClick={() => navigate('/')}
+              className="text-indigo-600 hover:text-indigo-700 text-sm font-medium flex items-center justify-center gap-2 mx-auto"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Store
+            </button>
+          </div>
         </div>
       </div>
     </div>

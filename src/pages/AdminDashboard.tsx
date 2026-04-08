@@ -13,6 +13,7 @@ import {
   Edit,
   Trash2,
   CheckCircle,
+  AlertCircle,
   Clock,
   Truck,
   X,
@@ -51,6 +52,7 @@ export default function AdminDashboard() {
   const [shippingAreas, setShippingAreas] = useState<ShippingArea[]>([]);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
+  const [storageError, setStorageError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'basic' | 'variations'>('basic');
@@ -76,6 +78,13 @@ export default function AdminDashboard() {
   const handleLogout = async () => {
     await logout();
     navigate('/admin/login');
+  };
+
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    if (typeof date === 'string') return new Date(date).toLocaleDateString();
+    if (date && typeof date === 'object' && 'toDate' in date) return date.toDate().toLocaleDateString();
+    return new Date(date).toLocaleDateString();
   };
 
   useEffect(() => {
@@ -165,23 +174,34 @@ export default function AdminDashboard() {
 
   const fetchFiles = async () => {
     try {
+      setStorageError(null);
       const storageRef = ref(storage, 'uploads');
       const res = await listAll(storageRef);
       const fileData = await Promise.all(
         res.items.map(async (item) => {
-          const url = await getDownloadURL(item);
-          const metadata = await getMetadata(item);
-          return {
-            name: item.name,
-            size: metadata.size,
-            created_at: metadata.timeCreated,
-            url: url
-          };
+          try {
+            const url = await getDownloadURL(item);
+            const metadata = await getMetadata(item);
+            return {
+              name: item.name,
+              size: metadata.size,
+              created_at: metadata.timeCreated,
+              url: url
+            };
+          } catch (e) {
+            console.error(`Failed to fetch metadata for ${item.name}:`, e);
+            return null;
+          }
         })
       );
-      setFiles(fileData.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
-    } catch (err) {
+      setFiles(fileData.filter(f => f !== null).sort((a, b) => new Date(b!.created_at).getTime() - new Date(a!.created_at).getTime()) as any);
+    } catch (err: any) {
       console.error('Failed to fetch files:', err);
+      if (err.code === 'storage/retry-limit-exceeded') {
+        setStorageError('Firebase Storage bucket might not be initialized or accessible. Please ensure Firebase Storage is enabled in your Firebase Console.');
+      } else {
+        setStorageError(err.message);
+      }
     }
   };
 
@@ -277,12 +297,14 @@ export default function AdminDashboard() {
     }
 
     try {
+      setStorageError(null);
       const storageRef = ref(storage, `products/${Date.now()}-${file.name}`);
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setProductForm({ ...productForm, image: url });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Image upload failed:', err);
+      setStorageError(`Upload failed: ${err.message}`);
       alert('Image upload failed');
     }
   };
@@ -533,11 +555,13 @@ export default function AdminDashboard() {
     if (!file) return;
 
     try {
+      setStorageError(null);
       const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
       await uploadBytes(storageRef, file);
       await fetchFiles();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Upload failed:', err);
+      setStorageError(`Upload failed: ${err.message}`);
       alert('Upload failed');
     }
   };
@@ -1294,7 +1318,7 @@ export default function AdminDashboard() {
                                 </span>
                               </td>
                               <td className="px-6 py-4 text-sm font-medium text-gray-600">
-                                {order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : 'N/A'}
+                                {formatDate(order.estimated_delivery)}
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <select
@@ -1377,7 +1401,7 @@ export default function AdminDashboard() {
                                   <div className="text-sm text-gray-600 line-clamp-2 max-w-md">{review.comment}</div>
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500">
-                                  {new Date(review.created_at).toLocaleDateString()}
+                                  {formatDate(review.created_at)}
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                   <button
@@ -1426,6 +1450,21 @@ export default function AdminDashboard() {
                   </div>
 
                   {/* Files Grid */}
+                  {storageError && (
+                    <div className="col-span-full bg-red-50 border border-red-100 text-red-600 p-6 rounded-2xl mb-6 flex items-center gap-3">
+                      <AlertCircle className="h-6 w-6 flex-shrink-0" />
+                      <div>
+                        <p className="font-bold">Storage Error</p>
+                        <p className="text-sm">{storageError}</p>
+                      </div>
+                      <button 
+                        onClick={() => fetchFiles()}
+                        className="ml-auto px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {files.length > 0 ? (
                       files.map((file) => (
@@ -1439,7 +1478,7 @@ export default function AdminDashboard() {
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                               <button 
                                 onClick={() => {
-                                  navigator.clipboard.writeText(window.location.origin + file.url);
+                                  navigator.clipboard.writeText(file.url);
                                   alert('URL copied to clipboard!');
                                 }}
                                 className="p-2 bg-white rounded-lg text-gray-900 hover:bg-gray-100 transition-colors"
@@ -1469,7 +1508,7 @@ export default function AdminDashboard() {
                             <p className="text-sm font-bold text-gray-900 truncate" title={file.name}>{file.name}</p>
                             <div className="flex justify-between items-center mt-1">
                               <p className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</p>
-                              <p className="text-xs text-gray-400">{new Date(file.created_at).toLocaleDateString()}</p>
+                              <p className="text-xs text-gray-400">{formatDate(file.created_at)}</p>
                             </div>
                           </div>
                         </div>
@@ -1526,7 +1565,7 @@ export default function AdminDashboard() {
                                     <div className="text-sm text-gray-500">{category.slug}</div>
                                   </td>
                                   <td className="px-6 py-4 text-sm text-gray-500">
-                                    {new Date(category.created_at).toLocaleDateString()}
+                                    {formatDate(category.created_at)}
                                   </td>
                                   <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
@@ -1596,7 +1635,7 @@ export default function AdminDashboard() {
                                     <div className="text-sm text-gray-500">{brand.slug}</div>
                                   </td>
                                   <td className="px-6 py-4 text-sm text-gray-500">
-                                    {new Date(brand.created_at).toLocaleDateString()}
+                                    {formatDate(brand.created_at)}
                                   </td>
                                   <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">
@@ -1667,7 +1706,7 @@ export default function AdminDashboard() {
                                     <div className="text-sm text-gray-500">{attr.slug}</div>
                                   </td>
                                   <td className="px-6 py-4 text-sm text-gray-500">
-                                    {new Date(attr.created_at).toLocaleDateString()}
+                                    {formatDate(attr.created_at)}
                                   </td>
                                   <td className="px-6 py-4">
                                     <div className="flex flex-wrap gap-2 items-center">
@@ -1765,7 +1804,7 @@ export default function AdminDashboard() {
                                     <div className="text-sm font-bold text-indigo-600">BDT {area.cost}</div>
                                   </td>
                                   <td className="px-6 py-4 text-sm text-gray-500">
-                                    {new Date(area.created_at).toLocaleDateString()}
+                                    {formatDate(area.created_at)}
                                   </td>
                                   <td className="px-6 py-4 text-right">
                                     <div className="flex items-center justify-end gap-2">

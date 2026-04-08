@@ -23,6 +23,13 @@ export default function OrderTracking() {
   const [loading, setLoading] = useState(!!urlId);
   const [error, setError] = useState<string | null>(null);
 
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    if (typeof date === 'string') return new Date(date).toLocaleDateString();
+    if (date && typeof date === 'object' && 'toDate' in date) return date.toDate().toLocaleDateString();
+    return new Date(date).toLocaleDateString();
+  };
+
   useEffect(() => {
     if (urlId) {
       fetchOrder(urlId);
@@ -193,7 +200,7 @@ export default function OrderTracking() {
                   </div>
                 </div>
                 <p className="text-sm text-gray-500">{result.product_name}</p>
-                <p className="text-xs text-gray-400 mt-1">{new Date(result.created_at).toLocaleDateString()}</p>
+                <p className="text-xs text-gray-400 mt-1">{formatDate(result.created_at)}</p>
               </div>
               <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-indigo-600" />
             </button>
@@ -276,7 +283,7 @@ export default function OrderTracking() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-extrabold text-gray-900">Track Your Order</h1>
-                <p className="text-gray-500">Estimated Delivery: <span className="font-bold text-indigo-600">{order.estimated_delivery ? new Date(order.estimated_delivery).toLocaleDateString() : 'TBD'}</span></p>
+                <p className="text-gray-500">Estimated Delivery: <span className="font-bold text-indigo-600">{formatDate(order.estimated_delivery)}</span></p>
                 {order.attributes && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {Object.entries(JSON.parse(order.attributes)).map(([key, value]) => (
@@ -380,10 +387,7 @@ export default function OrderTracking() {
                             {step?.label || item.status.toUpperCase()}
                           </p>
                           <p className="text-xs text-gray-400">
-                            {new Date(item.created_at).toLocaleString(undefined, {
-                              dateStyle: 'medium',
-                              timeStyle: 'short'
-                            })}
+                            {formatDate(item.created_at)}
                           </p>
                         </div>
                         <p className={`text-sm ${i === 0 ? 'text-gray-600' : 'text-gray-400'}`}>
