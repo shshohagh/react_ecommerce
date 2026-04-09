@@ -228,7 +228,10 @@ export default function AdminDashboard() {
       setAttributeValues(attrValSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttributeValue)));
       setShippingAreas(shipSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShippingArea)));
       
-      await fetchFiles();
+      // Small delay to ensure storage is ready
+      setTimeout(() => {
+        fetchFiles();
+      }, 500);
     } catch (err) {
       console.error(err);
     } finally {
