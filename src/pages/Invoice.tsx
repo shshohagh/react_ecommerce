@@ -4,7 +4,6 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatPrice } from '../lib/utils';
 import { Printer, Download, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { motion } from 'motion/react';
 
 export default function Invoice() {
   const { id } = useParams();
@@ -105,13 +104,11 @@ export default function Invoice() {
         </div>
 
         {/* Invoice Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden print:shadow-none print:border-none print:rounded-none"
+        <div
+          className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden print:shadow-none print:border-none print:rounded-none print:m-0 print:p-0"
         >
           {/* Header */}
-          <div className="bg-indigo-600 p-8 md:p-12 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 print:bg-white print:text-black print:border-b print:border-gray-200 print:p-6">
+          <div className="bg-indigo-600 p-8 md:p-12 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-6 print:bg-white print:text-black print:border-b print:border-gray-200 print:p-6 print:gap-2">
             <div>
               <h1 className="text-3xl font-extrabold tracking-tight mb-2">INVOICE</h1>
               <p className="text-indigo-100 print:text-gray-500">Order #{order.id}</p>
@@ -215,7 +212,7 @@ export default function Invoice() {
               <p className="text-gray-400 dark:text-gray-500 text-xs mt-2">If you have any questions about this invoice, please contact support@swiftcart.com</p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );
