@@ -7,6 +7,7 @@ import { formatPrice } from '../lib/utils';
 import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ShippingArea } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 
 export default function Checkout() {
   const { cart, clearCart, cartCount } = useCart();
@@ -71,8 +72,10 @@ export default function Checkout() {
           price: item.price,
           quantity: item.quantity,
           image: item.image,
-          attributes: item.selectedAttributes
+          attributes: JSON.stringify(item.selectedAttributes || {})
         })),
+        product_name: cart.length > 1 ? `${cart[0].name} + ${cart.length - 1} more` : cart[0].name,
+        product_price: total,
         subtotal,
         shipping_cost: shippingCost,
         total,
@@ -84,7 +87,13 @@ export default function Checkout() {
       setOrderSuccess(true);
       clearCart();
     } catch (err) {
+      console.error('Order placement error:', err);
       setError('Failed to place order. Please try again.');
+      try {
+        handleFirestoreError(err, OperationType.CREATE, 'orders');
+      } catch (e) {
+        // Error already logged and handled by handleFirestoreError
+      }
     } finally {
       setSubmitting(false);
     }
@@ -261,10 +270,14 @@ export default function Checkout() {
               </div>
 
               {error && (
-                <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl flex items-center gap-2">
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 rounded-xl flex items-center gap-2"
+                >
                   <AlertCircle className="h-5 w-5" />
                   {error}
-                </div>
+                </motion.div>
               )}
 
               <button

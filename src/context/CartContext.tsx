@@ -9,8 +9,8 @@ interface CartItem extends Product {
 interface CartContextType {
   cart: CartItem[];
   addToCart: (product: Product, attributes?: Record<string, string>) => void;
-  removeFromCart: (productId: number, attributes?: Record<string, string>) => void;
-  decreaseQuantity: (productId: number, attributes?: Record<string, string>) => void;
+  removeFromCart: (productId: string, attributes?: Record<string, string>) => void;
+  decreaseQuantity: (productId: string, attributes?: Record<string, string>) => void;
   clearCart: () => void;
   cartCount: number;
 }
@@ -48,7 +48,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const decreaseQuantity = (productId: number, attributes?: Record<string, string>) => {
+  const decreaseQuantity = (productId: string, attributes?: Record<string, string>) => {
     setCart((prev) => {
       const existingItem = prev.find(
         (item) => 
@@ -71,7 +71,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const removeFromCart = (productId: number, attributes?: Record<string, string>) => {
+  const removeFromCart = (productId: string, attributes?: Record<string, string>) => {
     setCart((prev) => prev.filter((item) => 
       !(item.id === productId && JSON.stringify(item.selectedAttributes) === JSON.stringify(attributes))
     ));

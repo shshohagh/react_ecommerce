@@ -36,6 +36,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
+import { seedDemoData } from '../seedData';
+import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands' | 'attributes' | 'shipping-areas'>('dashboard');
@@ -130,7 +132,7 @@ export default function AdminDashboard() {
   });
   const [variationForm, setVariationForm] = useState({
     attributes: {} as Record<string, string>,
-    quantity: ''
+    quantity: 0
   });
 
   const fetchVariations = async (productId: string) => {
@@ -152,10 +154,10 @@ export default function AdminDashboard() {
       await addDoc(collection(db, 'product_variations'), {
         product_id: editingProduct.id,
         attributes: JSON.stringify(variationForm.attributes),
-        quantity: parseInt(variationForm.quantity as string),
+        quantity: variationForm.quantity,
         created_at: Timestamp.now()
       });
-      setVariationForm({ attributes: {}, quantity: '' });
+      setVariationForm({ attributes: {}, quantity: 0 });
       fetchVariations(editingProduct.id);
     } catch (err) {
       console.error(err);
@@ -175,6 +177,7 @@ export default function AdminDashboard() {
   const fetchFiles = async () => {
     try {
       setStorageError(null);
+      console.log('Fetching files from storage bucket:', storage.app.options.storageBucket);
       const storageRef = ref(storage, 'uploads');
       const res = await listAll(storageRef);
       const fileData = await Promise.all(
@@ -198,7 +201,7 @@ export default function AdminDashboard() {
     } catch (err: any) {
       console.error('Failed to fetch files:', err);
       if (err.code === 'storage/retry-limit-exceeded') {
-        setStorageError('Firebase Storage bucket might not be initialized or accessible. Please ensure Firebase Storage is enabled in your Firebase Console.');
+        setStorageError('Firebase Storage connection timed out. This usually means the Storage bucket has not been initialized. Please go to the Firebase Console -> Storage and click "Get Started".');
       } else {
         setStorageError(err.message);
       }
@@ -234,6 +237,21 @@ export default function AdminDashboard() {
       }, 500);
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSeedData = async () => {
+    if (!confirm('This will populate your database with demo products, categories, and brands. Continue?')) return;
+    setLoading(true);
+    try {
+      await seedDemoData();
+      await fetchAll();
+      alert('Demo data seeded successfully!');
+    } catch (err: any) {
+      console.error('Seeding failed:', err);
+      alert(`Seeding failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -354,6 +372,11 @@ export default function AdminDashboard() {
       fetchAll();
     } catch (err) {
       console.error(err);
+      try {
+        handleFirestoreError(err, editingProduct ? OperationType.UPDATE : OperationType.CREATE, 'products');
+      } catch (e) {
+        // Error already logged and handled by handleFirestoreError
+      }
     }
   };
 
@@ -919,7 +942,14 @@ export default function AdminDashboard() {
           </div>
 
           {/* Sidebar Footer */}
-          <div className="p-4 border-t border-gray-100">
+          <div className="p-4 border-t border-gray-100 space-y-2">
+            <button
+              onClick={() => navigate('/')}
+              className={`w-full flex items-center p-3 rounded-xl text-gray-500 hover:bg-gray-50 transition-all group ${!isSidebarOpen ? 'justify-center' : ''}`}
+            >
+              <Globe className={`h-5 w-5 ${isSidebarOpen ? 'mr-3' : ''} group-hover:scale-110 transition-transform`} />
+              {isSidebarOpen && <span className="font-bold">Visit Site</span>}
+            </button>
             <button
               onClick={handleLogout}
               className={`w-full flex items-center p-3 rounded-xl text-red-500 hover:bg-red-50 transition-all group ${!isSidebarOpen ? 'justify-center' : ''}`}
@@ -966,6 +996,23 @@ export default function AdminDashboard() {
             >
               {activeTab === 'dashboard' && (
                 <div className="space-y-10">
+                  {/* Quick Actions */}
+                  <div className="bg-indigo-600 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-indigo-200">
+                    <div>
+                      <h3 className="text-2xl font-bold mb-2">Welcome to your Dashboard</h3>
+                      <p className="text-indigo-100">Manage your store, track orders, and analyze your performance.</p>
+                    </div>
+                    <div className="flex gap-4">
+                      <button 
+                        onClick={handleSeedData}
+                        className="px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-colors flex items-center gap-2 shadow-lg"
+                      >
+                        <Plus className="h-5 w-5" />
+                        Seed Demo Data
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <StatCard 
                       title="Total Revenue" 
@@ -2362,7 +2409,7 @@ export default function AdminDashboard() {
                         type="number"
                         min="0"
                         value={variationForm.quantity}
-                        onChange={e => setVariationForm({ ...variationForm, quantity: parseInt(e.target.value) })}
+                        onChange={e => setVariationForm({ ...variationForm, quantity: parseInt(e.target.value) || 0 })}
                         className="w-full px-3 py-2 rounded-lg border border-gray-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
                       />
                     </div>

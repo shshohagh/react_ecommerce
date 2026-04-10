@@ -10,6 +10,9 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import { ThemeProvider } from './context/ThemeContext';
 import { CartProvider } from './context/CartContext';
+import { useEffect } from 'react';
+import { seedDemoData } from './seedData';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function AppContent() {
   const location = useLocation();
@@ -77,12 +80,14 @@ function Footer() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <CartProvider>
-        <Router>
-          <AppContent />
-        </Router>
-      </CartProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <CartProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </CartProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

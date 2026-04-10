@@ -8,6 +8,7 @@ import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart, Info 
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../context/CartContext';
+import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 
 export default function ProductDetails() {
   const { id } = useParams();
@@ -133,7 +134,13 @@ export default function ProductDetails() {
       setSuccess({ id: docRef.id });
       setFormData({ customer_name: '', email: '', phone: '', address: '' });
     } catch (err: any) {
-      setError(err.message);
+      console.error('Order placement error:', err);
+      setError('Failed to place order. Please try again.');
+      try {
+        handleFirestoreError(err, OperationType.CREATE, 'orders');
+      } catch (e) {
+        // Error already logged and handled by handleFirestoreError
+      }
     } finally {
       setSubmitting(false);
     }
