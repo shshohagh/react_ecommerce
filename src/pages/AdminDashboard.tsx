@@ -18,6 +18,7 @@ import {
   Truck,
   X,
   LayoutDashboard,
+  FileText,
   Star,
   Search,
   Filter,
@@ -55,6 +56,7 @@ export default function AdminDashboard() {
   const [variations, setVariations] = useState<ProductVariation[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [isStorageEnabled, setIsStorageEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'basic' | 'variations'>('basic');
@@ -175,9 +177,15 @@ export default function AdminDashboard() {
   };
 
   const fetchFiles = async () => {
+    if (!isStorageEnabled) return;
     try {
       setStorageError(null);
-      console.log('Fetching files from storage bucket:', storage.app.options.storageBucket);
+      
+      if (!storage.app.options.storageBucket) {
+        setIsStorageEnabled(false);
+        return;
+      }
+
       const storageRef = ref(storage, 'uploads');
       const res = await listAll(storageRef);
       const fileData = await Promise.all(
@@ -192,16 +200,16 @@ export default function AdminDashboard() {
               url: url
             };
           } catch (e) {
-            console.error(`Failed to fetch metadata for ${item.name}:`, e);
             return null;
           }
         })
       );
       setFiles(fileData.filter(f => f !== null).sort((a, b) => new Date(b!.created_at).getTime() - new Date(a!.created_at).getTime()) as any);
     } catch (err: any) {
-      console.error('Failed to fetch files:', err);
-      if (err.code === 'storage/retry-limit-exceeded') {
-        setStorageError('Firebase Storage connection timed out. This usually means the Storage bucket has not been initialized. Please go to the Firebase Console -> Storage and click "Get Started".');
+      console.error('Storage fetch error:', err.code || err.message);
+      if (err.code === 'storage/retry-limit-exceeded' || err.code === 'storage/unauthorized') {
+        setStorageError('Firebase Storage is not initialized or permissions are missing. Please ensure Storage is enabled in your Firebase Console.');
+        setIsStorageEnabled(false); // Disable auto-fetching if it fails with these errors
       } else {
         setStorageError(err.message);
       }
@@ -1325,7 +1333,7 @@ export default function AdminDashboard() {
                             <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Product</th>
                             <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
                             <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Est. Delivery</th>
-                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Update Status</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
@@ -1371,16 +1379,25 @@ export default function AdminDashboard() {
                                 {formatDate(order.estimated_delivery)}
                               </td>
                               <td className="px-6 py-4 text-right">
-                                <select
-                                  value={order.status}
-                                  onChange={(e) => updateOrderStatus(order.id, e.target.value)}
-                                  className="text-sm font-bold text-gray-700 bg-gray-50 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none px-3 py-2 transition-all cursor-pointer"
-                                >
-                                  <option value="pending">Pending</option>
-                                  <option value="confirmed">Confirmed</option>
-                                  <option value="shipped">Shipped</option>
-                                  <option value="delivered">Delivered</option>
-                                </select>
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => navigate(`/invoice/${order.id}`)}
+                                    className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
+                                    title="View Invoice"
+                                  >
+                                    <FileText className="h-5 w-5" />
+                                  </button>
+                                  <select
+                                    value={order.status}
+                                    onChange={(e) => updateOrderStatus(order.id, e.target.value)}
+                                    className="text-sm font-bold text-gray-700 bg-gray-50 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none px-3 py-2 transition-all cursor-pointer"
+                                  >
+                                    <option value="pending">Pending</option>
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="shipped">Shipped</option>
+                                    <option value="delivered">Delivered</option>
+                                  </select>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1501,17 +1518,49 @@ export default function AdminDashboard() {
 
                   {/* Files Grid */}
                   {storageError && (
-                    <div className="col-span-full bg-red-50 border border-red-100 text-red-600 p-6 rounded-2xl mb-6 flex items-center gap-3">
-                      <AlertCircle className="h-6 w-6 flex-shrink-0" />
-                      <div>
-                        <p className="font-bold">Storage Error</p>
-                        <p className="text-sm">{storageError}</p>
+                    <div className="col-span-full bg-amber-50 border border-amber-100 text-amber-700 p-6 rounded-2xl mb-6 flex items-start gap-4">
+                      <AlertCircle className="h-6 w-6 flex-shrink-0 mt-0.5 text-amber-500" />
+                      <div className="flex-grow">
+                        <p className="font-bold mb-1">Storage Connection Issue</p>
+                        <p className="text-sm mb-4">{storageError}</p>
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => {
+                              setIsStorageEnabled(true);
+                              fetchFiles();
+                            }}
+                            className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded-lg hover:bg-amber-700 transition-colors"
+                          >
+                            Try Again
+                          </button>
+                          <a 
+                            href={`https://console.firebase.google.com/project/${storage.app.options.projectId}/storage`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 bg-white border border-amber-200 text-amber-700 text-xs font-bold rounded-lg hover:bg-amber-50 transition-colors"
+                          >
+                            Open Firebase Console
+                          </a>
+                        </div>
                       </div>
-                      <button 
-                        onClick={() => fetchFiles()}
-                        className="ml-auto px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors"
+                    </div>
+                  )}
+                  
+                  {!isStorageEnabled && !storageError && (
+                    <div className="col-span-full bg-gray-50 border border-gray-100 p-12 rounded-3xl text-center">
+                      <Package className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                      <h3 className="text-gray-900 font-bold mb-2">Storage is Disabled</h3>
+                      <p className="text-gray-500 text-sm mb-6 max-w-md mx-auto">
+                        Automatic media fetching is disabled due to a connection issue. You can try to re-enable it if you've configured your bucket.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setIsStorageEnabled(true);
+                          fetchFiles();
+                        }}
+                        className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all"
                       >
-                        Retry
+                        Enable Media Fetching
                       </button>
                     </div>
                   )}

@@ -4,7 +4,7 @@ import { collection, getDoc, getDocs, query, where, addDoc, doc, Timestamp, orde
 import { db } from '../firebase';
 import { Product, Review, ProductVariation } from '../types';
 import { formatPrice } from '../lib/utils';
-import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart, Info } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, AlertCircle, Star, MessageSquare, Heart, Info, ShoppingBag, ShoppingCart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../context/CartContext';
@@ -21,16 +21,6 @@ export default function ProductDetails() {
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<{ id: string } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const [formData, setFormData] = useState({
-    customer_name: '',
-    email: '',
-    phone: '',
-    address: ''
-  });
 
   const [selectedAttributes, setSelectedAttributes] = useState<Record<string, string>>({});
   const [currentVariation, setCurrentVariation] = useState<ProductVariation | null>(null);
@@ -109,40 +99,6 @@ export default function ProductDetails() {
       console.error('Wishlist error:', err);
     } finally {
       setWishlistLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id || !product) return;
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      const orderData = {
-        ...formData,
-        product_id: id,
-        product_name: product.name,
-        product_price: product.price,
-        product_image: product.image,
-        attributes: JSON.stringify(selectedAttributes),
-        status: 'pending',
-        created_at: Timestamp.now()
-      };
-
-      const docRef = await addDoc(collection(db, 'orders'), orderData);
-      setSuccess({ id: docRef.id });
-      setFormData({ customer_name: '', email: '', phone: '', address: '' });
-    } catch (err: any) {
-      console.error('Order placement error:', err);
-      setError('Failed to place order. Please try again.');
-      try {
-        handleFirestoreError(err, OperationType.CREATE, 'orders');
-      } catch (e) {
-        // Error already logged and handled by handleFirestoreError
-      }
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -249,153 +205,68 @@ export default function ProductDetails() {
           </div>
 
           <div className="bg-white dark:bg-gray-900 rounded-3xl border border-gray-100 dark:border-gray-800 p-8 shadow-sm transition-colors duration-300">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Order Now</h2>
-
-            <AnimatePresence mode="wait">
-              {success ? (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-green-50 dark:bg-green-950/30 border border-green-100 dark:border-green-900 rounded-2xl p-6 text-center"
-                >
-                  <CheckCircle2 className="h-12 w-12 text-green-500 dark:text-green-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-bold text-green-900 dark:text-green-300 mb-2">Order Placed Successfully!</h3>
-                  <p className="text-green-700 dark:text-green-400 text-sm mb-4">Your Order ID is: <span className="font-bold">#{success.id}</span></p>
-                  <p className="text-green-700 dark:text-green-400 text-sm mb-6">We'll contact you soon to confirm your delivery.</p>
-                  
-                  <div className="flex flex-col gap-3">
-                    <Link
-                      to={`/track-order/${success.id}`}
-                      className="w-full py-3 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all text-center"
-                    >
-                      Track Your Order
-                    </Link>
-                    <button
-                      onClick={() => setSuccess(null)}
-                      className="text-sm font-bold text-green-700 dark:text-green-400 hover:underline"
-                    >
-                      Place another order
-                    </button>
-                  </div>
-                </motion.div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {error && (
-                    <div className="bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900 text-red-600 dark:text-red-400 text-sm p-4 rounded-xl flex items-center">
-                      <AlertCircle className="h-4 w-4 mr-2 flex-shrink-0" />
-                      {error}
-                    </div>
+            {product.attributes && (
+              <div className="space-y-4 mb-8">
+                <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider flex justify-between items-center">
+                  Select Options
+                  {currentVariation && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                      currentVariation.quantity > 0 ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
+                    }`}>
+                      {currentVariation.quantity > 0 ? `In Stock: ${currentVariation.quantity}` : 'Out of Stock'}
+                    </span>
                   )}
-
-                  {product.attributes && (
-                    <div className="space-y-4 mb-6">
-                      <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider flex justify-between items-center">
-                        Select Options
-                        {currentVariation && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                            currentVariation.quantity > 0 ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
-                          }`}>
-                            {currentVariation.quantity > 0 ? `In Stock: ${currentVariation.quantity}` : 'Out of Stock'}
-                          </span>
-                        )}
-                      </h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {Object.entries(JSON.parse(product.attributes)).map(([key, value]) => {
-                          const options = (value as string).split(',').map(v => v.trim());
-                          return (
-                            <div key={key} className="space-y-2">
-                              <label className="block text-xs font-bold text-gray-500 dark:text-gray-400">{key}</label>
-                              <div className="flex flex-wrap gap-2">
-                                {options.map(opt => (
-                                  <button
-                                    key={opt}
-                                    type="button"
-                                    onClick={() => setSelectedAttributes({ ...selectedAttributes, [key]: opt })}
-                                    className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
-                                      selectedAttributes[key] === opt
-                                        ? 'bg-indigo-600 dark:bg-indigo-500 border-indigo-600 dark:border-indigo-500 text-white shadow-md shadow-indigo-200 dark:shadow-indigo-900/50'
-                                        : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-indigo-600 dark:hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                                    }`}
-                                  >
-                                    {opt}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {Object.entries(JSON.parse(product.attributes)).map(([key, value]) => {
+                    const options = (value as string).split(',').map(v => v.trim());
+                    return (
+                      <div key={key} className="space-y-2">
+                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400">{key}</label>
+                        <div className="flex flex-wrap gap-2">
+                          {options.map(opt => (
+                            <button
+                              key={opt}
+                              type="button"
+                              onClick={() => setSelectedAttributes({ ...selectedAttributes, [key]: opt })}
+                              className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all ${
+                                selectedAttributes[key] === opt
+                                  ? 'bg-indigo-600 dark:bg-indigo-500 border-indigo-600 dark:border-indigo-500 text-white shadow-md shadow-indigo-200 dark:shadow-indigo-900/50'
+                                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-indigo-600 dark:hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                              }`}
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                    <input
-                      required
-                      type="text"
-                      value={formData.customer_name}
-                      onChange={e => setFormData({ ...formData, customer_name: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                      placeholder="John Doe"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
-                    <input
-                      required
-                      type="email"
-                      value={formData.email}
-                      onChange={e => setFormData({ ...formData, email: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                      placeholder="john@example.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                    <input
-                      required
-                      type="tel"
-                      value={formData.phone}
-                      onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
-                      placeholder="+1 (555) 000-0000"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Delivery Address</label>
-                    <textarea
-                      required
-                      rows={3}
-                      value={formData.address}
-                      onChange={e => setFormData({ ...formData, address: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none"
-                      placeholder="123 Street Name, City, Country"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={() => addToCart(product, selectedAttributes)}
-                      disabled={submitting || (currentVariation !== null && currentVariation.quantity === 0)}
-                      className="w-full py-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Add to Cart
-                    </button>
-                    <button
-                      disabled={submitting || (currentVariation !== null && currentVariation.quantity === 0)}
-                      type="submit"
-                      className="w-full py-4 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25"
-                    >
-                      {submitting ? 'Processing...' : (currentVariation !== null && currentVariation.quantity === 0 ? 'Out of Stock' : 'Confirm Order')}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </AnimatePresence>
+            <div className="grid grid-cols-2 gap-4">
+              <button
+                onClick={() => addToCart(product, selectedAttributes)}
+                disabled={currentVariation !== null && currentVariation.quantity === 0}
+                className="w-full py-4 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 font-bold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="h-5 w-5" />
+                Add to Cart
+              </button>
+              <button
+                onClick={() => {
+                  addToCart(product, selectedAttributes);
+                  navigate('/checkout');
+                }}
+                disabled={currentVariation !== null && currentVariation.quantity === 0}
+                className="w-full py-4 bg-indigo-600 dark:bg-indigo-500 text-white font-bold rounded-xl hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+              >
+                <ShoppingBag className="h-5 w-5" />
+                Order Now
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where, addDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product, Review } from '../types';
@@ -14,6 +14,7 @@ interface ProductCardProps {
 }
 
 export default function ProductCard({ product, isWishlistedInitial = false }: ProductCardProps) {
+  const navigate = useNavigate();
   const { user, isAuthenticated } = useAuth();
   const { addToCart } = useCart();
   const [isWishlisted, setIsWishlisted] = useState(isWishlistedInitial);
@@ -152,13 +153,22 @@ export default function ProductCard({ product, isWishlistedInitial = false }: Pr
             <ShoppingCart className="h-3.5 w-3.5" />
             Add to Cart
           </button>
-          <Link
-            to={`/product/${product.id}`}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (product.attributes) {
+                navigate(`/product/${product.id}`);
+              } else {
+                addToCart(product);
+                navigate('/checkout');
+              }
+            }}
             className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25"
           >
             <Zap className="h-3.5 w-3.5" />
             Order Now
-          </Link>
+          </button>
         </div>
       </div>
     </div>

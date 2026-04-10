@@ -4,7 +4,7 @@ import { collection, getDocs, addDoc, Timestamp, query, orderBy } from 'firebase
 import { db } from '../firebase';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../lib/utils';
-import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin } from 'lucide-react';
+import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ShippingArea } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
@@ -13,7 +13,7 @@ export default function Checkout() {
   const { cart, clearCart, cartCount } = useCart();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
-  const [orderSuccess, setOrderSuccess] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState<{ id: string; data: any } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [shippingAreas, setShippingAreas] = useState<ShippingArea[]>([]);
   const [selectedArea, setSelectedArea] = useState<ShippingArea | null>(null);
@@ -83,8 +83,8 @@ export default function Checkout() {
         created_at: Timestamp.now()
       };
 
-      await addDoc(collection(db, 'orders'), orderData);
-      setOrderSuccess(true);
+      const docRef = await addDoc(collection(db, 'orders'), orderData);
+      setOrderSuccess({ id: docRef.id, data: orderData });
       clearCart();
     } catch (err) {
       console.error('Order placement error:', err);
@@ -101,11 +101,11 @@ export default function Checkout() {
 
   if (orderSuccess) {
     return (
-      <div className="max-w-3xl mx-auto px-4 py-20 text-center">
+      <div className="max-w-4xl mx-auto px-4 py-12">
         <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
+          initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white dark:bg-gray-900 rounded-3xl p-12 shadow-xl border border-gray-100 dark:border-gray-800"
+          className="bg-white dark:bg-gray-900 rounded-3xl p-8 md:p-12 shadow-xl border border-gray-100 dark:border-gray-800 text-center"
         >
           <div className="flex justify-center mb-6">
             <div className="p-4 bg-green-50 dark:bg-green-900/30 rounded-full">
@@ -114,8 +114,49 @@ export default function Checkout() {
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4">Order Placed Successfully!</h2>
           <p className="text-gray-500 dark:text-gray-400 mb-8 text-lg">
-            Thank you for your purchase. We've received your order and will begin processing it right away.
+            Thank you for your purchase. Your order ID is <span className="font-bold text-indigo-600 dark:text-indigo-400">#{orderSuccess.id}</span>
           </p>
+
+          <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 mb-8 text-left">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">Order Details</h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Customer</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{orderSuccess.data.customer_name}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Phone</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{orderSuccess.data.phone}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Shipping Address</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{orderSuccess.data.address}</p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Items</p>
+                <div className="space-y-3">
+                  {orderSuccess.data.items.map((item: any, idx: number) => (
+                    <div key={idx} className="flex justify-between items-center text-sm">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-gray-900 dark:text-white">{item.quantity}x</span>
+                        <span className="text-gray-600 dark:text-gray-300">{item.name}</span>
+                      </div>
+                      <span className="font-bold text-gray-900 dark:text-white">{formatPrice(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                <span className="text-lg font-bold text-gray-900 dark:text-white">Total Amount</span>
+                <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">{formatPrice(orderSuccess.data.total)}</span>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => navigate('/')}
@@ -124,10 +165,17 @@ export default function Checkout() {
               Back to Home
             </button>
             <button
-              onClick={() => navigate('/track-order')}
+              onClick={() => navigate(`/track-order/${orderSuccess.id}`)}
               className="px-8 py-4 bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
             >
               Track Order
+            </button>
+            <button
+              onClick={() => navigate(`/invoice/${orderSuccess.id}`)}
+              className="px-8 py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white font-bold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
+            >
+              <FileText className="h-5 w-5" />
+              Invoice
             </button>
           </div>
         </motion.div>
