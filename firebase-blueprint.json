@@ -31,7 +31,8 @@
         "status": { "type": "string", "enum": ["pending", "confirmed", "delivered"], "description": "Order status" },
         "estimated_delivery": { "type": "string", "format": "date-time", "description": "Estimated delivery date" },
         "created_at": { "type": "string", "format": "date-time", "description": "Order timestamp" },
-        "shipping_area_id": { "type": "string", "description": "ID of the shipping area" }
+        "shipping_area_id": { "type": "string", "description": "ID of the shipping area" },
+        "device_id": { "type": "string", "description": "Unique device ID for fraud prevention" }
       },
       "required": ["customer_name", "phone", "address", "product_id"]
     },
@@ -137,6 +138,28 @@
         "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
       },
       "required": ["user_id", "product_id"]
+    },
+    "BlockedCustomer": {
+      "title": "BlockedCustomer",
+      "description": "A blocked customer phone number.",
+      "type": "object",
+      "properties": {
+        "phone_number": { "type": "string", "description": "The blocked phone number" },
+        "reason": { "type": "string", "description": "Reason for blocking" },
+        "blocked_at": { "type": "string", "format": "date-time", "description": "Timestamp of block" }
+      },
+      "required": ["phone_number"]
+    },
+    "BlockedDevice": {
+      "title": "BlockedDevice",
+      "description": "A blocked device ID.",
+      "type": "object",
+      "properties": {
+        "device_id": { "type": "string", "description": "The blocked device ID" },
+        "reason": { "type": "string", "description": "Reason for blocking" },
+        "blocked_at": { "type": "string", "format": "date-time", "description": "Timestamp of block" }
+      },
+      "required": ["device_id"]
     }
   },
   "firestore": {
@@ -150,6 +173,8 @@
     "/attribute_values/{valueId}": { "schema": "AttributeValue", "description": "Collection of attribute values" },
     "/product_variations/{variationId}": { "schema": "ProductVariation", "description": "Collection of product variations" },
     "/users/{userId}": { "schema": "User", "description": "Collection of user profiles" },
-    "/wishlist/{wishlistId}": { "schema": "Wishlist", "description": "Collection of wishlist items" }
+    "/wishlist/{wishlistId}": { "schema": "Wishlist", "description": "Collection of wishlist items" },
+    "/blocked_customers/{blockId}": { "schema": "BlockedCustomer", "description": "Collection of blocked phone numbers" },
+    "/blocked_devices/{blockId}": { "schema": "BlockedDevice", "description": "Collection of blocked device IDs" }
   }
 }

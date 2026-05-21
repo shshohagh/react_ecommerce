@@ -62,6 +62,21 @@ export interface Order {
   estimated_delivery?: string;
   created_at: string;
   history?: OrderHistory[];
+  device_id?: string;
+}
+
+export interface BlockedCustomer {
+  id: string;
+  phone_number: string;
+  reason: string;
+  blocked_at: string;
+}
+
+export interface BlockedDevice {
+  id: string;
+  device_id: string;
+  reason: string;
+  blocked_at: string;
 }
 
 export interface User {

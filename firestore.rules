@@ -31,6 +31,21 @@ service cloud.firestore {
     //   - estimated_delivery: timestamp
     //   - created_at: timestamp
     //   - shipping_area_id: string
+    //   - device_id: string
+    //
+    // Collection: blocked_customers
+    // Document ID: phone_number (sanitized)
+    // Fields:
+    //   - phone_number: string (required)
+    //   - reason: string
+    //   - blocked_at: timestamp
+    //
+    // Collection: blocked_devices
+    // Document ID: device_id
+    // Fields:
+    //   - device_id: string (required)
+    //   - reason: string
+    //   - blocked_at: timestamp
     //
     // Collection: reviews
     // Document ID: reviewId
@@ -142,8 +157,19 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       allow read: if isAdmin();
-      allow create: if true; // Allow anyone to place an order
+      allow create: if !exists(/databases/$(database)/documents/blocked_customers/$(request.resource.data.phone)) &&
+                      (!('device_id' in request.resource.data) || !exists(/databases/$(database)/documents/blocked_devices/$(request.resource.data.device_id)));
       allow update, delete: if isAdmin();
+    }
+
+    match /blocked_customers/{phone} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /blocked_devices/{deviceId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     match /reviews/{reviewId} {

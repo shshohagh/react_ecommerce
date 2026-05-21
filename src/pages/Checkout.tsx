@@ -4,10 +4,12 @@ import { collection, getDocs, addDoc, Timestamp, query, orderBy } from 'firebase
 import { db } from '../firebase';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../lib/utils';
-import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin, FileText } from 'lucide-react';
+import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin, FileText, ShieldAlert } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ShippingArea } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
+import { getDeviceId } from '../lib/fingerprint';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function Checkout() {
   const { cart, clearCart, cartCount } = useCart();
@@ -17,6 +19,7 @@ export default function Checkout() {
   const [error, setError] = useState<string | null>(null);
   const [shippingAreas, setShippingAreas] = useState<ShippingArea[]>([]);
   const [selectedArea, setSelectedArea] = useState<ShippingArea | null>(null);
+  const [deviceId, setDeviceId] = useState<string>('');
 
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -42,6 +45,9 @@ export default function Checkout() {
       }
     };
     fetchShippingAreas();
+    
+    // Get device ID on load
+    getDeviceId().then(id => setDeviceId(id));
   }, []);
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -64,8 +70,29 @@ export default function Checkout() {
     setError(null);
 
     try {
+      // 1. Check if phone is blocked
+      const phoneBlockRef = doc(db, 'blocked_customers', formData.phone.replace(/\s+/g, ''));
+      const phoneBlockSnap = await getDoc(phoneBlockRef);
+      if (phoneBlockSnap.exists()) {
+        setError('This phone number has been blocked due to suspicious activity.');
+        setSubmitting(false);
+        return;
+      }
+
+      // 2. Check if device is blocked
+      if (deviceId) {
+        const deviceBlockRef = doc(db, 'blocked_devices', deviceId);
+        const deviceBlockSnap = await getDoc(deviceBlockRef);
+        if (deviceBlockSnap.exists()) {
+          setError('This device has been blocked due to suspicious activity.');
+          setSubmitting(false);
+          return;
+        }
+      }
+
       const orderData = {
         ...formData,
+        device_id: deviceId,
         items: cart.map(item => ({
           product_id: item.id,
           name: item.name,

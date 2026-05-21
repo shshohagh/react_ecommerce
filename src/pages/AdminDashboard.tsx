@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Papa from 'papaparse';
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, orderBy, Timestamp, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, listAll, deleteObject, getMetadata } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { Product, Order, Review, Category, Brand, Attribute, AttributeValue, ProductVariation, ShippingArea } from '../types';
@@ -33,7 +33,10 @@ import {
   Copy,
   ExternalLink,
   Tags,
-  Globe
+  Globe,
+  ShieldAlert,
+  UserX,
+  Smartphone
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
@@ -41,7 +44,7 @@ import { seedDemoData } from '../seedData';
 import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands' | 'attributes' | 'shipping-areas'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands' | 'attributes' | 'shipping-areas' | 'fraud'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDashboardSubMenuOpen, setIsDashboardSubMenuOpen] = useState(false);
   const [isProductsSubMenuOpen, setIsProductsSubMenuOpen] = useState(false);
@@ -54,6 +57,8 @@ export default function AdminDashboard() {
   const [attributeValues, setAttributeValues] = useState<AttributeValue[]>([]);
   const [shippingAreas, setShippingAreas] = useState<ShippingArea[]>([]);
   const [variations, setVariations] = useState<ProductVariation[]>([]);
+  const [blockedCustomers, setBlockedCustomers] = useState<any[]>([]);
+  const [blockedDevices, setBlockedDevices] = useState<any[]>([]);
   const [files, setFiles] = useState<{ name: string; size: number; created_at: string; url: string }[]>([]);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [isStorageEnabled, setIsStorageEnabled] = useState(true);
@@ -176,6 +181,83 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchBlockedData = async () => {
+    try {
+      const [customerSnap, deviceSnap] = await Promise.all([
+        getDocs(query(collection(db, 'blocked_customers'), orderBy('blocked_at', 'desc'))),
+        getDocs(query(collection(db, 'blocked_devices'), orderBy('blocked_at', 'desc')))
+      ]);
+      setBlockedCustomers(customerSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setBlockedDevices(deviceSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (err) {
+      console.error('Failed to fetch blocked data:', err);
+    }
+  };
+
+  const [fraudMessage, setFraudMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const showFraudMessage = (text: string, type: 'success' | 'error' = 'success') => {
+    setFraudMessage({ text, type });
+    setTimeout(() => setFraudMessage(null), 3000);
+  };
+
+  const blockPhone = async (phone: string) => {
+    if (!phone) return;
+    console.log('Blocking phone:', phone);
+    try {
+      const phoneId = phone.replace(/\s+/g, '');
+      await setDoc(doc(db, 'blocked_customers', phoneId), {
+        phone_number: phone,
+        reason: 'Blocked by Admin',
+        blocked_at: Timestamp.now()
+      });
+      showFraudMessage(`Phone ${phone} blocked successfully`);
+      fetchBlockedData();
+    } catch (err) {
+      console.error('Failed to block phone:', err);
+      showFraudMessage('Failed to block phone number', 'error');
+    }
+  };
+
+  const blockDevice = async (deviceId: string) => {
+    if (!deviceId) return;
+    console.log('Blocking device:', deviceId);
+    try {
+      await setDoc(doc(db, 'blocked_devices', deviceId), {
+        device_id: deviceId,
+        reason: 'Blocked by Admin',
+        blocked_at: Timestamp.now()
+      });
+      showFraudMessage(`Device ${deviceId} blocked successfully`);
+      fetchBlockedData();
+    } catch (err) {
+      console.error('Failed to block device:', err);
+      showFraudMessage('Failed to block device', 'error');
+    }
+  };
+
+  const unblockPhone = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'blocked_customers', id));
+      showFraudMessage('Phone number unblocked');
+      fetchBlockedData();
+    } catch (err) {
+      console.error(err);
+      showFraudMessage('Failed to unblock phone', 'error');
+    }
+  };
+
+  const unblockDevice = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'blocked_devices', id));
+      showFraudMessage('Device unblocked');
+      fetchBlockedData();
+    } catch (err) {
+      console.error(err);
+      showFraudMessage('Failed to unblock device', 'error');
+    }
+  };
+
   const fetchFiles = async () => {
     if (!isStorageEnabled) return;
     try {
@@ -187,7 +269,14 @@ export default function AdminDashboard() {
       }
 
       const storageRef = ref(storage, 'uploads');
-      const res = await listAll(storageRef);
+      
+      // Use a promise with timeout to prevent long-running retries
+      const listPromise = listAll(storageRef);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Storage request timed out')), 10000)
+      );
+
+      const res = (await Promise.race([listPromise, timeoutPromise])) as any;
       const fileData = await Promise.all(
         res.items.map(async (item) => {
           try {
@@ -206,10 +295,14 @@ export default function AdminDashboard() {
       );
       setFiles(fileData.filter(f => f !== null).sort((a, b) => new Date(b!.created_at).getTime() - new Date(a!.created_at).getTime()) as any);
     } catch (err: any) {
-      console.error('Storage fetch error:', err.code || err.message);
-      if (err.code === 'storage/retry-limit-exceeded' || err.code === 'storage/unauthorized') {
-        setStorageError('Firebase Storage is not initialized or permissions are missing. Please ensure Storage is enabled in your Firebase Console.');
-        setIsStorageEnabled(false); // Disable auto-fetching if it fails with these errors
+      // Only log to console if it's not a common configuration error
+      if (err.code !== 'storage/retry-limit-exceeded' && err.code !== 'storage/unauthorized' && err.message !== 'Storage request timed out') {
+        console.error('Storage fetch error:', err.code || err.message);
+      }
+      
+      if (err.code === 'storage/retry-limit-exceeded' || err.code === 'storage/unauthorized' || err.message === 'Storage request timed out') {
+        setStorageError('Firebase Storage is taking too long to respond or is not fully configured. Please ensure Storage is enabled and initialized in your Firebase Console.');
+        setIsStorageEnabled(false); // Disable auto-fetching to prevent further timeout/retry errors
       } else {
         setStorageError(err.message);
       }
@@ -238,6 +331,8 @@ export default function AdminDashboard() {
       setAttributes(attrSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Attribute)));
       setAttributeValues(attrValSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttributeValue)));
       setShippingAreas(shipSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ShippingArea)));
+      
+      await fetchBlockedData();
       
       // Small delay to ensure storage is ready
       setTimeout(() => {
@@ -333,7 +428,11 @@ export default function AdminDashboard() {
       setProductForm({ ...productForm, image: url });
     } catch (err: any) {
       console.error('Image upload failed:', err);
-      setStorageError(`Upload failed: ${err.message}`);
+      if (err.code === 'storage/retry-limit-exceeded') {
+        setStorageError('Storage connection timed out. Please check your Firebase Storage configuration.');
+      } else {
+        setStorageError(`Upload failed: ${err.message}`);
+      }
       alert('Image upload failed');
     }
   };
@@ -595,7 +694,11 @@ export default function AdminDashboard() {
       await fetchFiles();
     } catch (err: any) {
       console.error('Upload failed:', err);
-      setStorageError(`Upload failed: ${err.message}`);
+      if (err.code === 'storage/retry-limit-exceeded') {
+        setStorageError('Storage connection timed out. Please check your Firebase Storage configuration.');
+      } else {
+        setStorageError(`Upload failed: ${err.message}`);
+      }
       alert('Upload failed');
     }
   };
@@ -917,6 +1020,14 @@ export default function AdminDashboard() {
               onClick={() => setActiveTab('orders')}
               icon={<ClipboardList className="h-5 w-5" />}
               label="Orders"
+              isOpen={isSidebarOpen}
+            />
+
+            <SidebarItem 
+              active={activeTab === 'fraud'} 
+              onClick={() => setActiveTab('fraud')}
+              icon={<ShieldAlert className="h-5 w-5" />}
+              label="Fraud Management"
               isOpen={isSidebarOpen}
             />
 
@@ -1330,6 +1441,7 @@ export default function AdminDashboard() {
                         <thead className="bg-gray-50/50 border-b border-gray-100">
                           <tr>
                             <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Customer</th>
+                            <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Phone</th>
                             <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Product</th>
                             <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Status</th>
                             <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Est. Delivery</th>
@@ -1346,9 +1458,12 @@ export default function AdminDashboard() {
                                   </div>
                                   <div>
                                     <div className="text-sm font-bold text-gray-900">{order.customer_name}</div>
-                                    <div className="text-xs text-gray-500">{order.email || order.phone}</div>
+                                    <div className="text-xs text-gray-500">{order.email}</div>
                                   </div>
                                 </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="text-sm font-medium text-gray-900">{order.phone || 'N/A'}</div>
                               </td>
                               <td className="px-6 py-4">
                                 <div className="text-sm font-bold text-gray-900">{order.product_name}</div>
@@ -1387,6 +1502,22 @@ export default function AdminDashboard() {
                                   >
                                     <FileText className="h-5 w-5" />
                                   </button>
+                                  <button
+                                    onClick={() => blockPhone(order.phone)}
+                                    className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                    title="Block Phone"
+                                  >
+                                    <UserX className="h-5 w-5" />
+                                  </button>
+                                  {order.device_id && (
+                                    <button
+                                      onClick={() => blockDevice(order.device_id!)}
+                                      className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                      title="Block Device"
+                                    >
+                                      <Smartphone className="h-5 w-5" />
+                                    </button>
+                                  )}
                                   <select
                                     value={order.status}
                                     onChange={(e) => updateOrderStatus(order.id, e.target.value)}
@@ -1853,6 +1984,138 @@ export default function AdminDashboard() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === 'fraud' && (
+                    <div className="space-y-8">
+                      {/* Fraud Header */}
+                      {fraudMessage && (
+                        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-2xl shadow-lg border animate-in fade-in slide-in-from-top-4 duration-300 ${
+                          fraudMessage.type === 'success' ? 'bg-green-50 border-green-100 text-green-700' : 'bg-red-50 border-red-100 text-red-700'
+                        }`}>
+                          <div className="flex items-center gap-2 font-bold">
+                            {fraudMessage.type === 'success' ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                            {fraudMessage.text}
+                          </div>
+                        </div>
+                      )}
+                      <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                        <h2 className="text-2xl font-bold text-gray-900">Fraud Management</h2>
+                        <p className="text-gray-500 text-sm">Manage blocked customers and devices to prevent fraudulent orders.</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Blocked Phone Numbers */}
+                        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                          <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-red-50 rounded-lg">
+                                <UserX className="h-5 w-5 text-red-600" />
+                              </div>
+                              <h3 className="font-bold text-gray-900">Blocked Phone Numbers</h3>
+                            </div>
+                            <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-500">
+                              {blockedCustomers.length} Blocked
+                            </span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                              <thead className="bg-gray-50/50 border-b border-gray-100">
+                                <tr>
+                                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Phone Number</th>
+                                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Blocked At</th>
+                                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {blockedCustomers.map(customer => (
+                                  <tr key={customer.id} className="hover:bg-gray-50/50 transition-colors">
+                                    <td className="px-6 py-4">
+                                      <div className="text-sm font-bold text-gray-900">{customer.phone_number}</div>
+                                      <div className="text-[10px] text-gray-400">{customer.reason}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                      {formatDate(customer.blocked_at)}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                      <button
+                                        onClick={() => unblockPhone(customer.id)}
+                                        className="px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                      >
+                                        Unblock
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {blockedCustomers.length === 0 && (
+                                  <tr>
+                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-400 italic text-sm">
+                                      No phone numbers blocked yet.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Blocked Devices */}
+                        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                          <div className="p-6 border-b border-gray-50 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-red-50 rounded-lg">
+                                <Smartphone className="h-5 w-5 text-red-600" />
+                              </div>
+                              <h3 className="font-bold text-gray-900">Blocked Device IDs</h3>
+                            </div>
+                            <span className="px-3 py-1 bg-gray-100 rounded-full text-xs font-bold text-gray-500">
+                              {blockedDevices.length} Blocked
+                            </span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                              <thead className="bg-gray-50/50 border-b border-gray-100">
+                                <tr>
+                                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Device ID</th>
+                                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">Blocked At</th>
+                                  <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {blockedDevices.map(device => (
+                                  <tr key={device.id} className="hover:bg-gray-50/50 transition-colors">
+                                    <td className="px-6 py-4">
+                                      <div className="text-sm font-mono font-bold text-gray-900 truncate max-w-[150px]" title={device.device_id}>
+                                        {device.device_id}
+                                      </div>
+                                      <div className="text-[10px] text-gray-400">{device.reason}</div>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-gray-500">
+                                      {formatDate(device.blocked_at)}
+                                    </td>
+                                    <td className="px-6 py-4 text-right">
+                                      <button
+                                        onClick={() => unblockDevice(device.id)}
+                                        className="px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                      >
+                                        Unblock
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                                {blockedDevices.length === 0 && (
+                                  <tr>
+                                    <td colSpan={3} className="px-6 py-12 text-center text-gray-400 italic text-sm">
+                                      No device IDs blocked yet.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
                     </div>
