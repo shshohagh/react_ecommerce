@@ -108,6 +108,31 @@ export const seedDemoData = async () => {
       console.log('Shipping areas seeded.');
     }
 
+    // 5. Seed Customer Reviews if empty
+    const reviewSnap = await getDocs(collection(db, 'reviews'));
+    if (reviewSnap.empty) {
+      const allProductsSnap = await getDocs(collection(db, 'products'));
+      const sampleComments = [
+        { customer_name: 'Sarah Jenkins', rating: 5, comment: 'Absolutely exceeded my expectations! Build quality is top tier and arrived ahead of schedule.' },
+        { customer_name: 'David Chen', rating: 5, comment: 'Sleek design, flawless performance, and premium feel. Worth every penny.' },
+        { customer_name: 'Elena Rostova', rating: 4, comment: 'Great daily driver. Fast responsiveness and great battery efficiency. Recommended!' },
+        { customer_name: 'Marcus Brody', rating: 5, comment: 'Packaging was pristine and customer service answered my setup questions immediately.' }
+      ];
+
+      for (const prodDoc of allProductsSnap.docs) {
+        for (const rev of sampleComments.slice(0, 3)) {
+          await addDoc(collection(db, 'reviews'), {
+            product_id: prodDoc.id,
+            customer_name: rev.customer_name,
+            rating: rev.rating,
+            comment: rev.comment,
+            created_at: Timestamp.now()
+          });
+        }
+      }
+      console.log('Customer reviews seeded.');
+    }
+
     console.log('Demo data seeding completed successfully.');
   } catch (error) {
     console.error('Error seeding demo data:', error);

@@ -156,7 +156,7 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow read: if isAdmin();
+      allow read: if true;
       allow create: if !exists(/databases/$(database)/documents/blocked_customers/$(request.resource.data.phone)) &&
                       (!('device_id' in request.resource.data) || !exists(/databases/$(database)/documents/blocked_devices/$(request.resource.data.device_id)));
       allow update, delete: if isAdmin();
@@ -170,6 +170,39 @@ service cloud.firestore {
     match /blocked_devices/{deviceId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /newsletter_subscribers/{subscriberId} {
+      allow read: if isAdmin();
+      allow create: if true;
+    }
+
+    match /price_alerts/{alertId} {
+      allow read: if isAdmin();
+      allow create: if true;
+    }
+
+    match /stock_notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /user_addresses/{addressId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+    }
+
+    match /user_preferences/{prefId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.user_id == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+    }
+
+    match /live_product_activity/{productId} {
+      allow read: if true;
+      allow write: if true;
     }
 
     match /reviews/{reviewId} {

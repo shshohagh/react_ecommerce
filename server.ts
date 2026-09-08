@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import knex from "knex";
 import multer from "multer";
-import { sendEmail, generateOrderConfirmationEmail, generateShippingUpdateEmail } from "./src/services/emailService.js";
+import { sendEmail, generateOrderConfirmationEmail, generateShippingUpdateEmail, generatePriceAlertConfirmationEmail } from "./src/services/emailService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -839,6 +839,57 @@ async function startServer() {
     res.status(201).json({ id });
   });
 
+  // Automated Email Receipt Dispatch Endpoint
+  app.post("/api/send-order-receipt", async (req, res) => {
+    const { order, items, email } = req.body;
+    const recipientEmail = email || order?.email;
+
+    if (!recipientEmail || !order) {
+      return res.status(400).json({ error: "Order details and recipient email are required" });
+    }
+
+    try {
+      const emailContent = generateOrderConfirmationEmail(order, items || order.items || []);
+      const sendResult = await sendEmail({
+        to: recipientEmail,
+        ...emailContent
+      });
+      console.log(`Receipt email dispatched to ${recipientEmail} for order #${order.id}`);
+      res.json({ success: true, message: `Receipt sent to ${recipientEmail}`, sendResult });
+    } catch (err: any) {
+      console.error("Failed to send order receipt email:", err);
+      // Still return 200 with error notice so client checkout flow isn't blocked
+      res.json({ success: false, warning: "Email delivery failed or SMTP not configured", error: err?.message });
+    }
+  });
+
+  // Price Drop Alert Activation & Email Trigger Endpoint
+  app.post("/api/price-alerts", async (req, res) => {
+    const { email, product_id, product_name, product_image, current_price, target_price, alert_type } = req.body;
+
+    if (!email || !product_id) {
+      return res.status(400).json({ error: "Email and Product ID are required" });
+    }
+
+    try {
+      // Send price alert confirmation email using SMTP
+      const emailContent = generatePriceAlertConfirmationEmail(
+        { email, product_id, product_name, current_price, target_price, alert_type },
+        { name: product_name, image: product_image, price: current_price }
+      );
+
+      await sendEmail({
+        to: email,
+        ...emailContent
+      });
+
+      res.status(201).json({ success: true, message: `Price alert confirmation sent to ${email}` });
+    } catch (err: any) {
+      console.error("Failed to send price alert confirmation email:", err);
+      res.status(200).json({ success: true, warning: "Alert saved, email notification pending SMTP credentials" });
+    }
+  });
+
   app.get("/api/orders/search", async (req, res) => {
     const { q } = req.query;
     if (!q) return res.status(400).json({ error: "Search query is required" });
@@ -1021,6 +1072,132 @@ async function startServer() {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Failed to delete file" });
+    }
+  });
+
+  // --- AI Chatbot Endpoint (Gemini API) ---
+  app.post("/api/chat", async (req, res) => {
+    const { message, conversationHistory = [] } = req.body;
+    if (!message || typeof message !== "string") {
+      return res.status(400).json({ error: "A valid message is required." });
+    }
+
+    try {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({
+          error: "Gemini API key is not configured.",
+          reply: "I am currently running in offline preview mode because the GEMINI_API_KEY is not set. Please configure your Gemini API key in Settings to enable full AI assistance!"
+        });
+      }
+
+      // Query products and categories from database for live context
+      let products: any[] = [];
+      let categories: any[] = [];
+      try {
+        products = await db("products").select("id", "name", "price", "category", "brand", "description", "is_featured");
+        categories = await db("categories").select("name");
+      } catch (dbErr) {
+        console.warn("Could not query SQLite catalog for chat context:", dbErr);
+      }
+
+      const productListSummary = products.length > 0
+        ? products.map(p => `- [ID: ${p.id}] "${p.name}" ($${p.price}) | Category: ${p.category} | Brand: ${p.brand || 'SwiftCart'} | Details: ${p.description || 'Premium quality'}`).join("\n")
+        : "- Wireless Noise-Cancelling Headphones ($199.99)\n- Minimalist Smart Watch ($149.50)\n- Organic Cotton Casual Hoodie ($65.00)\n- Ergonomic Mechanical Keyboard ($120.00)";
+
+      const systemInstruction = `You are SwiftBot, the helpful, courteous, and highly knowledgeable AI Assistant for SwiftCart, a modern premium e-commerce store.
+
+CURRENT STORE INVENTORY:
+${productListSummary}
+
+STORE POLICIES & HELPFUL INFO:
+1. SHIPPING TIMES:
+   - Standard Delivery: 3 to 5 business days (Flat rate $5.00, or FREE for all orders over $50).
+   - Express Delivery: 1 to 2 business days ($12.00).
+   - Same-day dispatch for orders placed before 2:00 PM.
+2. RETURN & REFUND POLICY:
+   - 30-day money-back guarantee for unused items with original packaging.
+   - Return shipping is completely free for damaged, defective, or incorrect items.
+   - Easy 1-click return requests via customer support.
+3. PROMOTIONS & DISCOUNT CODES:
+   - Customers can use discount promo code "SAVE20" at checkout for an instant 20% off their entire order.
+4. ORDER TRACKING & INVOICES:
+   - Customers can click "Track Order" in the navigation to track shipment status in real-time or view printable PDF invoices in their Order History.
+5. CURRENCIES & PAYMENTS:
+   - Supports multi-currency conversion (USD, EUR, GBP, BDT, CAD, AUD, JPY, INR).
+   - Payment options: Cash on Delivery (COD), Visa, MasterCard, Amex, PayPal.
+
+GUIDELINES:
+- Keep answers friendly, helpful, scannable, and clear.
+- Recommend specific matching products from the inventory whenever customers ask for product advice, specifications, or gift ideas.
+- Mention prices, key features, and product names accurately.
+- Use markdown formatting (bolding, bullet points) to make recommendations easy to read.`;
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({
+        apiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      // Construct conversation contents
+      const contents: any[] = [];
+      
+      if (Array.isArray(conversationHistory)) {
+        for (const msg of conversationHistory.slice(-8)) {
+          if (msg.role && msg.content) {
+            contents.push({
+              role: msg.role === 'user' ? 'user' : 'model',
+              parts: [{ text: msg.content }]
+            });
+          }
+        }
+      }
+
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.7-flash",
+        contents,
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
+      });
+
+      const replyText = response.text || "I am here to help! How can I assist you with your shopping today?";
+      res.json({ reply: replyText });
+    } catch (err: any) {
+      console.error("Gemini chatbot API error:", err);
+      res.status(500).json({ 
+        error: "Failed to generate AI response.", 
+        reply: "I apologize, but I encountered a temporary connection issue. Please feel free to ask your question again or check our Track Order and FAQ sections!"
+      });
+    }
+  });
+
+  // --- Newsletter Subscription Endpoint ---
+  app.post("/api/newsletter", async (req, res) => {
+    const { email, source = "exit_intent" } = req.body;
+    if (!email || !email.includes("@")) {
+      return res.status(400).json({ error: "Valid email address is required" });
+    }
+    try {
+      console.log(`New newsletter subscription [${source}]: ${email}`);
+      res.json({ 
+        success: true, 
+        message: "Thank you for subscribing! Use coupon code SAVE20 for 20% off your next purchase.",
+        code: "SAVE20",
+        discount: 20
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Failed to subscribe" });
     }
   });
 

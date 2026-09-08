@@ -8,6 +8,11 @@ export interface Product {
   brand: string;
   attributes?: string; // JSON string
   is_featured: boolean;
+  stock?: number;
+  stock_status?: 'in_stock' | 'out_of_stock' | 'on_backorder';
+  in_stock?: boolean;
+  rating?: number;
+  reviews_count?: number;
   created_at: string;
 }
 
@@ -57,6 +62,10 @@ export interface Order {
   product_id: string;
   product_name?: string;
   product_price?: number;
+  quantity?: number;
+  shipping_area?: string;
+  total?: number;
+  items?: any[];
   attributes?: string; // JSON string
   status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
   estimated_delivery?: string;
@@ -83,6 +92,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  role?: string;
 }
 
 export interface Review {
@@ -108,7 +118,67 @@ export interface ShippingArea {
   created_at: string;
 }
 
+export interface PriceAlert {
+  id?: string;
+  email: string;
+  product_id: string;
+  product_name: string;
+  target_price?: number;
+  created_at: string;
+}
+
+export interface StockNotification {
+  id?: string;
+  email: string;
+  product_id: string;
+  product_name: string;
+  product_image?: string;
+  product_price?: number;
+  product_category?: string;
+  user_id?: string | null;
+  user_name?: string | null;
+  selected_attributes?: Record<string, string>;
+  status: 'pending' | 'notified' | 'cancelled';
+  created_at: string;
+}
+
 export interface AuthResponse {
   token: string;
   user: User;
 }
+
+export interface UserAddress {
+  id?: string;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  street_address: string;
+  apartment?: string;
+  city: string;
+  state?: string;
+  postal_code?: string;
+  country: string;
+  is_default?: boolean;
+  label?: 'Home' | 'Work' | 'Other';
+  created_at?: string;
+}
+
+export interface UserPreferences {
+  user_id: string;
+  email_order_updates: boolean;
+  email_promotions: boolean;
+  email_price_alerts: boolean;
+  email_stock_alerts: boolean;
+  sms_notifications: boolean;
+  updated_at?: string;
+}
+
+export interface LiveProductActivity {
+  product_id: string;
+  in_carts_count: number;
+  active_viewers: number;
+  last_purchased_minutes_ago?: number;
+  remaining_inventory: number;
+  updated_at?: string;
+}
+

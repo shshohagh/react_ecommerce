@@ -3,16 +3,76 @@ import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, addDoc, Timestamp, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
 import { formatPrice } from '../lib/utils';
-import { CheckCircle2, AlertCircle, CreditCard, Truck, ShieldCheck, ArrowLeft, MapPin, FileText, ShieldAlert } from 'lucide-react';
-import { motion } from 'motion/react';
+import {
+  CheckCircle2,
+  AlertCircle,
+  CreditCard,
+  Truck,
+  ShieldCheck,
+  ArrowLeft,
+  MapPin,
+  FileText,
+  ShieldAlert,
+  Mail,
+  Tag,
+  Check,
+  X,
+  Sparkles,
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ShippingArea } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 import { getDeviceId } from '../lib/fingerprint';
 import { doc, getDoc } from 'firebase/firestore';
 
+interface DiscountRule {
+  code: string;
+  type: 'percentage' | 'fixed' | 'free_shipping';
+  value: number;
+  minOrder?: number;
+  description: string;
+}
+
+const PREDEFINED_DISCOUNT_CODES: Record<string, DiscountRule> = {
+  SAVE20: {
+    code: 'SAVE20',
+    type: 'percentage',
+    value: 20,
+    description: '20% off entire order',
+  },
+  WELCOME10: {
+    code: 'WELCOME10',
+    type: 'percentage',
+    value: 10,
+    description: '10% welcome discount',
+  },
+  FLASH30: {
+    code: 'FLASH30',
+    type: 'percentage',
+    value: 30,
+    minOrder: 100,
+    description: '30% off orders over $100',
+  },
+  VIP50: {
+    code: 'VIP50',
+    type: 'fixed',
+    value: 50,
+    minOrder: 100,
+    description: '$50 off orders over $100',
+  },
+  FREESHIP: {
+    code: 'FREESHIP',
+    type: 'free_shipping',
+    value: 0,
+    description: '100% Free Shipping on your delivery',
+  },
+};
+
 export default function Checkout() {
   const { cart, clearCart, cartCount } = useCart();
+  const { showSuccess, showError, showInfo } = useToast();
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<{ id: string; data: any } | null>(null);
@@ -20,6 +80,11 @@ export default function Checkout() {
   const [shippingAreas, setShippingAreas] = useState<ShippingArea[]>([]);
   const [selectedArea, setSelectedArea] = useState<ShippingArea | null>(null);
   const [deviceId, setDeviceId] = useState<string>('');
+
+  // Discount code states
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<DiscountRule | null>(null);
+  const [couponError, setCouponError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -51,8 +116,61 @@ export default function Checkout() {
   }, []);
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  const shippingCost = selectedArea ? selectedArea.cost : 0;
-  const total = subtotal + shippingCost;
+
+  // Calculate discount and shipping based on promo code
+  let discountAmount = 0;
+  let effectiveShippingCost = selectedArea ? selectedArea.cost : 0;
+
+  if (appliedDiscount) {
+    if (appliedDiscount.type === 'percentage') {
+      discountAmount = (subtotal * appliedDiscount.value) / 100;
+    } else if (appliedDiscount.type === 'fixed') {
+      discountAmount = Math.min(subtotal, appliedDiscount.value);
+    } else if (appliedDiscount.type === 'free_shipping') {
+      effectiveShippingCost = 0;
+    }
+  }
+
+  const total = Math.max(0, subtotal - discountAmount) + effectiveShippingCost;
+
+  const handleApplyCoupon = (codeToApply?: string) => {
+    setCouponError(null);
+    const targetCode = (codeToApply || couponInput).trim().toUpperCase();
+
+    if (!targetCode) {
+      setCouponError('Please enter a discount code.');
+      return;
+    }
+
+    const matchedDiscount = PREDEFINED_DISCOUNT_CODES[targetCode];
+
+    if (!matchedDiscount) {
+      setCouponError(`Coupon code "${targetCode}" is invalid.`);
+      showError(`Coupon code "${targetCode}" is not recognized.`, 'Invalid Code');
+      return;
+    }
+
+    if (matchedDiscount.minOrder && subtotal < matchedDiscount.minOrder) {
+      const msg = `Code "${targetCode}" requires a minimum order of ${formatPrice(matchedDiscount.minOrder)}.`;
+      setCouponError(msg);
+      showError(msg, 'Minimum Order Required');
+      return;
+    }
+
+    setAppliedDiscount(matchedDiscount);
+    setCouponInput(targetCode);
+    showSuccess(
+      `Discount code "${matchedDiscount.code}" applied: ${matchedDiscount.description}!`,
+      'Coupon Applied 🎉'
+    );
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedDiscount(null);
+    setCouponInput('');
+    setCouponError(null);
+    showInfo('Discount code removed.', 'Coupon Removed');
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -74,7 +192,9 @@ export default function Checkout() {
       const phoneBlockRef = doc(db, 'blocked_customers', formData.phone.replace(/\s+/g, ''));
       const phoneBlockSnap = await getDoc(phoneBlockRef);
       if (phoneBlockSnap.exists()) {
-        setError('This phone number has been blocked due to suspicious activity.');
+        const msg = 'This phone number has been blocked due to suspicious activity.';
+        setError(msg);
+        showError(msg, 'Order Blocked');
         setSubmitting(false);
         return;
       }
@@ -84,7 +204,9 @@ export default function Checkout() {
         const deviceBlockRef = doc(db, 'blocked_devices', deviceId);
         const deviceBlockSnap = await getDoc(deviceBlockRef);
         if (deviceBlockSnap.exists()) {
-          setError('This device has been blocked due to suspicious activity.');
+          const msg = 'This device has been blocked due to suspicious activity.';
+          setError(msg);
+          showError(msg, 'Order Blocked');
           setSubmitting(false);
           return;
         }
@@ -104,7 +226,9 @@ export default function Checkout() {
         product_name: cart.length > 1 ? `${cart[0].name} + ${cart.length - 1} more` : cart[0].name,
         product_price: total,
         subtotal,
-        shipping_cost: shippingCost,
+        discount_code: appliedDiscount?.code || null,
+        discount_amount: discountAmount,
+        shipping_cost: effectiveShippingCost,
         total,
         status: 'pending',
         created_at: Timestamp.now()
@@ -113,9 +237,31 @@ export default function Checkout() {
       const docRef = await addDoc(collection(db, 'orders'), orderData);
       setOrderSuccess({ id: docRef.id, data: orderData });
       clearCart();
+      showSuccess(`Order #${docRef.id} placed successfully!`, 'Purchase Completed');
+
+      // Trigger automated email receipt via backend SMTP service
+      if (formData.email && formData.email.includes('@')) {
+        try {
+          fetch('/api/send-order-receipt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              email: formData.email,
+              order: {
+                id: docRef.id,
+                ...orderData
+              },
+              items: orderData.items
+            })
+          }).catch(e => console.warn('Email dispatch warning:', e));
+        } catch (e) {
+          console.warn('Failed to invoke receipt endpoint:', e);
+        }
+      }
     } catch (err) {
       console.error('Order placement error:', err);
       setError('Failed to place order. Please try again.');
+      showError('Failed to place order. Please check connection and try again.');
       try {
         handleFirestoreError(err, OperationType.CREATE, 'orders');
       } catch (e) {
@@ -140,9 +286,16 @@ export default function Checkout() {
             </div>
           </div>
           <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white mb-4">Order Placed Successfully!</h2>
-          <p className="text-gray-500 dark:text-gray-400 mb-8 text-lg">
+          <p className="text-gray-500 dark:text-gray-400 mb-4 text-lg">
             Thank you for your purchase. Your order ID is <span className="font-bold text-indigo-600 dark:text-indigo-400">#{orderSuccess.id}</span>
           </p>
+
+          {orderSuccess.data.email && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-full text-xs font-semibold border border-indigo-100 dark:border-indigo-800 mb-8">
+              <Mail className="h-3.5 w-3.5" />
+              <span>An automated order receipt & tracking details have been sent to <strong>{orderSuccess.data.email}</strong></span>
+            </div>
+          )}
 
           <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl p-6 mb-8 text-left">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 border-b border-gray-200 dark:border-gray-700 pb-2">Order Details</h3>
@@ -358,7 +511,7 @@ export default function Checkout() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 mt-8"
+                className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 mt-8 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 {submitting ? 'Placing Order...' : 'Complete Purchase'}
               </button>
@@ -385,16 +538,156 @@ export default function Checkout() {
               ))}
             </div>
 
-            <div className="space-y-4 pt-6 border-t border-gray-50 dark:border-gray-800">
-              <div className="flex justify-between text-gray-500 dark:text-gray-400">
+            {/* Discount Code Entry Box */}
+            <div className="py-5 border-t border-b border-gray-100 dark:border-gray-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <label
+                  htmlFor="checkout-coupon-input"
+                  className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5"
+                >
+                  <Tag className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Promo / Discount Code</span>
+                </label>
+                {appliedDiscount && (
+                  <span className="text-[11px] font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <Check className="h-3 w-3" />
+                    <span>Applied</span>
+                  </span>
+                )}
+              </div>
+
+              {appliedDiscount ? (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 bg-emerald-600 text-white rounded-lg">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-black font-mono text-emerald-800 dark:text-emerald-300">
+                          {appliedDiscount.code}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-200/70 dark:bg-emerald-800/60 text-emerald-800 dark:text-emerald-200 font-bold">
+                          {appliedDiscount.type === 'percentage'
+                            ? `${appliedDiscount.value}% OFF`
+                            : appliedDiscount.type === 'fixed'
+                            ? `${formatPrice(appliedDiscount.value)} OFF`
+                            : 'FREE SHIPPING'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+                        {appliedDiscount.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="p-1.5 text-emerald-600 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-xl transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    title="Remove discount code"
+                    aria-label="Remove discount code"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="flex gap-2">
+                    <div className="relative flex-grow">
+                      <input
+                        id="checkout-coupon-input"
+                        type="text"
+                        value={couponInput}
+                        onChange={(e) => {
+                          setCouponInput(e.target.value.toUpperCase());
+                          if (couponError) setCouponError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyCoupon();
+                          }
+                        }}
+                        placeholder="e.g. SAVE20, WELCOME10"
+                        className="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs font-mono font-bold text-gray-900 dark:text-white uppercase placeholder:normal-case placeholder:font-sans placeholder:text-gray-400 focus:ring-2 focus:ring-indigo-500 focus-visible:outline-none transition-all"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCoupon()}
+                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-sm shadow-indigo-600/20 active:scale-95 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  {couponError && (
+                    <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1 font-medium">
+                      <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span>{couponError}</span>
+                    </p>
+                  )}
+
+                  {/* Predefined mock coupons suggestions */}
+                  <div className="pt-1">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">
+                      Available Promo Codes (Click to apply):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.values(PREDEFINED_DISCOUNT_CODES).map((promo) => (
+                        <button
+                          key={promo.code}
+                          type="button"
+                          onClick={() => handleApplyCoupon(promo.code)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                          title={promo.description}
+                        >
+                          <Tag className="h-2.5 w-2.5" />
+                          <span>{promo.code}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Financial Breakdown */}
+            <div className="space-y-3 pt-5">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
                 <span>Subtotal</span>
                 <span className="font-bold text-gray-900 dark:text-white">{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between text-gray-500 dark:text-gray-400">
-                <span>Shipping</span>
-                <span className="font-bold text-indigo-600 dark:text-indigo-400">{formatPrice(shippingCost)}</span>
+
+              {discountAmount > 0 && (
+                <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                  <span className="flex items-center gap-1">
+                    <span>Discount ({appliedDiscount?.code})</span>
+                  </span>
+                  <span className="font-bold">-{formatPrice(discountAmount)}</span>
+                </div>
+              )}
+
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span className="flex items-center gap-1">
+                  <span>Shipping</span>
+                  {appliedDiscount?.type === 'free_shipping' && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-bold">
+                      PROMO
+                    </span>
+                  )}
+                </span>
+                <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                  {effectiveShippingCost === 0 ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-black">FREE</span>
+                  ) : (
+                    formatPrice(effectiveShippingCost)
+                  )}
+                </span>
               </div>
-              <div className="pt-4 border-t border-gray-50 dark:border-gray-800 flex justify-between">
+
+              <div className="pt-4 border-t border-gray-100 dark:border-gray-800 flex justify-between items-baseline">
                 <span className="text-lg font-bold text-gray-900 dark:text-white">Total</span>
                 <span className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">{formatPrice(total)}</span>
               </div>

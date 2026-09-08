@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { formatPrice } from '../lib/utils';
-import { Printer, Download, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Printer, ArrowLeft, CheckCircle2, Copy, Share2 } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
 
 export default function Invoice() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { showSuccess, showError, showInfo } = useToast();
 
   useEffect(() => {
     async function fetchOrder() {
@@ -19,9 +21,12 @@ export default function Invoice() {
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           setOrder({ id: docSnap.id, ...docSnap.data() });
+        } else {
+          setOrder(null);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error fetching order for invoice:', err);
+        showError('Unable to load order details. Please check permissions or connection.');
       } finally {
         setLoading(false);
       }
@@ -31,11 +36,21 @@ export default function Invoice() {
 
   const handlePrint = () => {
     try {
+      showSuccess('Opening print preview for your invoice...', 'Print Ready');
       window.focus();
       window.print();
     } catch (err) {
       console.error('Print failed:', err);
-      alert('Print failed. Please try opening the invoice in a new tab or use your browser\'s print shortcut (Ctrl+P or Cmd+P).');
+      showInfo('Please use your browser\'s print shortcut (Ctrl+P or Cmd+P).', 'Print Info');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showSuccess('Invoice link copied to your clipboard!', 'Link Copied');
+    } catch (err) {
+      showInfo('You can copy the URL from your browser address bar.', 'Invoice URL');
     }
   };
 
@@ -87,10 +102,17 @@ export default function Invoice() {
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </button>
-          <div className="flex gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCopyLink}
+              className="flex items-center px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm active:scale-95"
+            >
+              <Copy className="mr-2 h-4 w-4" />
+              Copy Link
+            </button>
             <button
               onClick={handlePrint}
-              className="flex items-center px-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all shadow-sm"
+              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition-all shadow-sm active:scale-95 shadow-indigo-500/20"
             >
               <Printer className="mr-2 h-4 w-4" />
               Print Invoice

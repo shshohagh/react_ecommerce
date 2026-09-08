@@ -160,6 +160,78 @@
         "blocked_at": { "type": "string", "format": "date-time", "description": "Timestamp of block" }
       },
       "required": ["device_id"]
+    },
+    "NewsletterSubscriber": {
+      "title": "NewsletterSubscriber",
+      "description": "A newsletter email subscriber.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "Subscriber email address" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Subscription timestamp" }
+      },
+      "required": ["email"]
+    },
+    "PriceAlert": {
+      "title": "PriceAlert",
+      "description": "A price drop notification request for a specific product.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "product_id": { "type": "string", "description": "ID of product" },
+        "product_name": { "type": "string", "description": "Name of product" },
+        "target_price": { "type": "number", "description": "Target or current price threshold" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Subscription timestamp" }
+      },
+      "required": ["email", "product_id"]
+    },
+    "UserAddress": {
+      "title": "UserAddress",
+      "description": "A saved shipping address for a customer.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "User identifier" },
+        "full_name": { "type": "string", "description": "Full name for delivery" },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "street_address": { "type": "string", "description": "Street address line" },
+        "apartment": { "type": "string", "description": "Apt, Suite, Unit (optional)" },
+        "city": { "type": "string", "description": "City" },
+        "state": { "type": "string", "description": "State or Province" },
+        "postal_code": { "type": "string", "description": "ZIP or Postal code" },
+        "country": { "type": "string", "description": "Country" },
+        "is_default": { "type": "boolean", "description": "Whether this is the default shipping address" },
+        "label": { "type": "string", "description": "Address label (Home, Work, Other)" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["full_name", "phone", "street_address", "city", "country"]
+    },
+    "UserPreferences": {
+      "title": "UserPreferences",
+      "description": "Customer notification and communication settings.",
+      "type": "object",
+      "properties": {
+        "user_id": { "type": "string", "description": "User identifier" },
+        "email_order_updates": { "type": "boolean", "description": "Receive order status and tracking emails" },
+        "email_promotions": { "type": "boolean", "description": "Receive weekly deals and discount coupons" },
+        "email_price_alerts": { "type": "boolean", "description": "Receive alerts when saved items drop in price" },
+        "email_stock_alerts": { "type": "boolean", "description": "Receive alerts when out-of-stock items restock" },
+        "sms_notifications": { "type": "boolean", "description": "Receive SMS shipment alerts" },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["email_order_updates"]
+    },
+    "LiveProductActivity": {
+      "title": "LiveProductActivity",
+      "description": "Real-time viewer and cart activity counter for products.",
+      "type": "object",
+      "properties": {
+        "product_id": { "type": "string", "description": "Product ID" },
+        "in_carts_count": { "type": "number", "description": "Number of active carts holding this item" },
+        "active_viewers": { "type": "number", "description": "Number of active viewers currently browsing" },
+        "last_purchased_minutes_ago": { "type": "number", "description": "Minutes since last verified purchase" },
+        "remaining_inventory": { "type": "number", "description": "Real-time calculated remaining stock" },
+        "updated_at": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["product_id"]
     }
   },
   "firestore": {
@@ -173,8 +245,14 @@
     "/attribute_values/{valueId}": { "schema": "AttributeValue", "description": "Collection of attribute values" },
     "/product_variations/{variationId}": { "schema": "ProductVariation", "description": "Collection of product variations" },
     "/users/{userId}": { "schema": "User", "description": "Collection of user profiles" },
+    "/user_addresses/{addressId}": { "schema": "UserAddress", "description": "Collection of saved customer addresses" },
+    "/user_preferences/{prefId}": { "schema": "UserPreferences", "description": "Collection of customer notification preferences" },
+    "/live_product_activity/{productId}": { "schema": "LiveProductActivity", "description": "Real-time product viewer and cart counter" },
     "/wishlist/{wishlistId}": { "schema": "Wishlist", "description": "Collection of wishlist items" },
     "/blocked_customers/{blockId}": { "schema": "BlockedCustomer", "description": "Collection of blocked phone numbers" },
-    "/blocked_devices/{blockId}": { "schema": "BlockedDevice", "description": "Collection of blocked device IDs" }
+    "/blocked_devices/{blockId}": { "schema": "BlockedDevice", "description": "Collection of blocked device IDs" },
+    "/newsletter_subscribers/{subscriberId}": { "schema": "NewsletterSubscriber", "description": "Collection of newsletter subscriptions" },
+    "/price_alerts/{alertId}": { "schema": "PriceAlert", "description": "Collection of price drop alerts" },
+    "/stock_notifications/{notificationId}": { "schema": "StockNotification", "description": "Collection of out-of-stock notification subscriptions" }
   }
 }

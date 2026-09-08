@@ -36,14 +36,18 @@ import {
   Globe,
   ShieldAlert,
   UserX,
-  Smartphone
+  Smartphone,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../context/ToastContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { seedDemoData } from '../seedData';
 import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
+import MonthlySalesChart from '../components/MonthlySalesChart';
 
 export default function AdminDashboard() {
+  const { showSuccess, showError, showInfo } = useToast();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'reviews' | 'file-manager' | 'categories' | 'brands' | 'attributes' | 'shipping-areas' | 'fraud'>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isDashboardSubMenuOpen, setIsDashboardSubMenuOpen] = useState(false);
@@ -166,18 +170,21 @@ export default function AdminDashboard() {
       });
       setVariationForm({ attributes: {}, quantity: 0 });
       fetchVariations(editingProduct.id);
+      showSuccess('Product variation added successfully!', 'Variation Created');
     } catch (err) {
       console.error(err);
+      showError('Failed to add variation.');
     }
   };
 
   const deleteVariation = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this variation?')) return;
     try {
       await deleteDoc(doc(db, 'product_variations', id));
       if (editingProduct) fetchVariations(editingProduct.id);
+      showSuccess('Product variation deleted!', 'Variation Removed');
     } catch (err) {
       console.error(err);
+      showError('Failed to delete variation.');
     }
   };
 
@@ -198,6 +205,11 @@ export default function AdminDashboard() {
 
   const showFraudMessage = (text: string, type: 'success' | 'error' = 'success') => {
     setFraudMessage({ text, type });
+    if (type === 'success') {
+      showSuccess(text, 'Fraud Management');
+    } else {
+      showError(text, 'Fraud Management');
+    }
     setTimeout(() => setFraudMessage(null), 3000);
   };
 
@@ -346,15 +358,14 @@ export default function AdminDashboard() {
   };
 
   const handleSeedData = async () => {
-    if (!confirm('This will populate your database with demo products, categories, and brands. Continue?')) return;
     setLoading(true);
     try {
       await seedDemoData();
       await fetchAll();
-      alert('Demo data seeded successfully!');
+      showSuccess('Demo data seeded successfully!', 'Database Initialized');
     } catch (err: any) {
       console.error('Seeding failed:', err);
-      alert(`Seeding failed: ${err.message}`);
+      showError(`Seeding failed: ${err.message}`, 'Seed Error');
     } finally {
       setLoading(false);
     }
@@ -370,8 +381,10 @@ export default function AdminDashboard() {
 
       if (editingShippingArea) {
         await updateDoc(doc(db, 'shipping_areas', editingShippingArea.id), data);
+        showSuccess(`Shipping area "${data.name}" updated!`);
       } else {
         await addDoc(collection(db, 'shipping_areas'), data);
+        showSuccess(`Shipping area "${data.name}" created!`);
       }
       setIsShippingAreaModalOpen(false);
       setEditingShippingArea(null);
@@ -379,18 +392,18 @@ export default function AdminDashboard() {
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert('Failed to save shipping area');
+      showError('Failed to save shipping area');
     }
   };
 
   const deleteShippingArea = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this shipping area?')) return;
     try {
       await deleteDoc(doc(db, 'shipping_areas', id));
+      showSuccess('Shipping area deleted!');
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert('Failed to delete shipping area');
+      showError('Failed to delete shipping area');
     }
   };
 
@@ -416,7 +429,7 @@ export default function AdminDashboard() {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size must be less than 5MB');
+      showError('Image size must be less than 5MB', 'File Too Large');
       return;
     }
 
@@ -426,6 +439,7 @@ export default function AdminDashboard() {
       await uploadBytes(storageRef, file);
       const url = await getDownloadURL(storageRef);
       setProductForm({ ...productForm, image: url });
+      showSuccess('Product image uploaded successfully!', 'Image Ready');
     } catch (err: any) {
       console.error('Image upload failed:', err);
       if (err.code === 'storage/retry-limit-exceeded') {
@@ -433,20 +447,16 @@ export default function AdminDashboard() {
       } else {
         setStorageError(`Upload failed: ${err.message}`);
       }
-      alert('Image upload failed');
+      showError('Image upload failed. You can paste an image URL instead.');
     }
   };
 
   const handleProductSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!productForm.image) {
-      alert('Please upload a product image');
+      showError('Please upload or select a product image', 'Missing Image');
       return;
     }
-    const method = editingProduct ? 'PUT' : 'POST';
-    const url = editingProduct
-      ? `/api/admin/products/${editingProduct.id}`
-      : '/api/admin/products';
 
     try {
       if (editingProduct) {
@@ -455,6 +465,7 @@ export default function AdminDashboard() {
           price: parseFloat(productForm.price as string),
           attributes: JSON.stringify(productForm.attributes)
         });
+        showSuccess(`Product "${productForm.name}" updated!`, 'Product Saved');
       } else {
         await addDoc(collection(db, 'products'), {
           ...productForm,
@@ -462,6 +473,7 @@ export default function AdminDashboard() {
           attributes: JSON.stringify(productForm.attributes),
           created_at: Timestamp.now()
         });
+        showSuccess(`Product "${productForm.name}" created!`, 'Product Created');
       }
 
       setIsModalOpen(false);
@@ -479,6 +491,7 @@ export default function AdminDashboard() {
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to save product.');
       try {
         handleFirestoreError(err, editingProduct ? OperationType.UPDATE : OperationType.CREATE, 'products');
       } catch (e) {
@@ -488,52 +501,57 @@ export default function AdminDashboard() {
   };
 
   const deleteReview = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this review?')) return;
     try {
       await deleteDoc(doc(db, 'reviews', id));
+      showSuccess('Customer review deleted.', 'Review Removed');
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to delete review.');
     }
   };
 
   const deleteCategory = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this category?')) return;
     try {
       await deleteDoc(doc(db, 'categories', id));
+      showSuccess('Category deleted!', 'Category Removed');
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to delete category.');
     }
   };
 
   const deleteBrand = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this brand?')) return;
     try {
       await deleteDoc(doc(db, 'brands', id));
+      showSuccess('Brand deleted!', 'Brand Removed');
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to delete brand.');
     }
   };
 
   const deleteAttribute = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this attribute?')) return;
     try {
       await deleteDoc(doc(db, 'attributes', id));
+      showSuccess('Attribute deleted!', 'Attribute Removed');
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to delete attribute.');
     }
   };
 
   const deleteAttributeValue = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this value?')) return;
     try {
       await deleteDoc(doc(db, 'attribute_values', id));
+      showSuccess('Attribute value deleted!');
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to delete attribute value.');
     }
   };
 
@@ -601,11 +619,13 @@ export default function AdminDashboard() {
     try {
       if (editingCategory) {
         await updateDoc(doc(db, 'categories', editingCategory.id), categoryForm);
+        showSuccess(`Category "${categoryForm.name}" updated!`);
       } else {
         await addDoc(collection(db, 'categories'), {
           ...categoryForm,
           created_at: Timestamp.now()
         });
+        showSuccess(`Category "${categoryForm.name}" created!`);
       }
       setIsCategoryModalOpen(false);
       setEditingCategory(null);
@@ -613,6 +633,7 @@ export default function AdminDashboard() {
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to save category.');
     }
   };
 
@@ -621,11 +642,13 @@ export default function AdminDashboard() {
     try {
       if (editingBrand) {
         await updateDoc(doc(db, 'brands', editingBrand.id), brandForm);
+        showSuccess(`Brand "${brandForm.name}" updated!`);
       } else {
         await addDoc(collection(db, 'brands'), {
           ...brandForm,
           created_at: Timestamp.now()
         });
+        showSuccess(`Brand "${brandForm.name}" created!`);
       }
       setIsBrandModalOpen(false);
       setEditingBrand(null);
@@ -633,6 +656,7 @@ export default function AdminDashboard() {
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to save brand.');
     }
   };
 
@@ -641,11 +665,13 @@ export default function AdminDashboard() {
     try {
       if (editingAttribute) {
         await updateDoc(doc(db, 'attributes', editingAttribute.id), attributeForm);
+        showSuccess(`Attribute "${attributeForm.name}" updated!`);
       } else {
         await addDoc(collection(db, 'attributes'), {
           ...attributeForm,
           created_at: Timestamp.now()
         });
+        showSuccess(`Attribute "${attributeForm.name}" created!`);
       }
       setIsAttributeModalOpen(false);
       setEditingAttribute(null);
@@ -653,6 +679,7 @@ export default function AdminDashboard() {
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to save attribute.');
     }
   };
 
@@ -663,23 +690,25 @@ export default function AdminDashboard() {
         ...attributeValueForm,
         created_at: Timestamp.now()
       });
+      showSuccess(`Attribute value "${attributeValueForm.value}" added!`);
       setIsAttributeValueModalOpen(false);
       setAttributeValueForm({ attribute_id: '', value: '' });
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to save attribute value.');
     }
   };
 
   const deleteFile = async (filename: string) => {
-    if (!confirm('Are you sure you want to delete this file?')) return;
     try {
       const fileRef = ref(storage, `uploads/${filename}`);
       await deleteObject(fileRef);
+      showSuccess(`File "${filename}" deleted!`, 'File Removed');
       await fetchFiles();
     } catch (err) {
       console.error('Failed to delete file:', err);
-      alert('Failed to delete file');
+      showError('Failed to delete file from Storage.');
     }
   };
 
@@ -691,6 +720,7 @@ export default function AdminDashboard() {
       setStorageError(null);
       const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
       await uploadBytes(storageRef, file);
+      showSuccess(`Uploaded ${file.name} successfully!`, 'Upload Complete');
       await fetchFiles();
     } catch (err: any) {
       console.error('Upload failed:', err);
@@ -699,31 +729,32 @@ export default function AdminDashboard() {
       } else {
         setStorageError(`Upload failed: ${err.message}`);
       }
-      alert('Upload failed');
+      showError('File upload failed.');
     }
   };
 
   const deleteProduct = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
     try {
       await deleteDoc(doc(db, 'products', id));
+      showSuccess('Product deleted successfully!', 'Product Removed');
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to delete product.');
     }
   };
 
   const handleBulkDelete = async () => {
     if (selectedProductIds.length === 0) return;
-    if (!confirm(`Are you sure you want to delete ${selectedProductIds.length} products?`)) return;
 
     try {
       await Promise.all(selectedProductIds.map(id => deleteDoc(doc(db, 'products', id))));
+      showSuccess(`${selectedProductIds.length} products deleted!`, 'Bulk Action');
       setSelectedProductIds([]);
       fetchAll();
     } catch (err) {
       console.error(err);
-      alert('An error occurred during bulk deletion.');
+      showError('An error occurred during bulk deletion.');
     }
   };
 
@@ -744,10 +775,172 @@ export default function AdminDashboard() {
   const updateOrderStatus = async (id: string, status: string) => {
     try {
       await updateDoc(doc(db, 'orders', id), { status });
+      showSuccess(`Order #${id} status changed to ${status.toUpperCase()}`, 'Order Updated');
       fetchAll();
     } catch (err) {
       console.error(err);
+      showError('Failed to update order status.');
     }
+  };
+
+  const exportOrdersToCSV = () => {
+    if (orders.length === 0) {
+      showInfo('No orders available to export.');
+      return;
+    }
+
+    const exportData = orders.map((order, idx) => {
+      let orderDate = 'N/A';
+      const createdAt = order.created_at as any;
+      if (createdAt) {
+        if (typeof createdAt === 'object' && createdAt !== null && 'toDate' in createdAt) {
+          orderDate = createdAt.toDate().toISOString().split('T')[0];
+        } else if (typeof createdAt === 'string') {
+          orderDate = new Date(createdAt).toISOString().split('T')[0];
+        }
+      }
+
+      let parsedAttrs = '';
+      if (order.attributes) {
+        try {
+          const obj = typeof order.attributes === 'string' ? JSON.parse(order.attributes) : order.attributes;
+          parsedAttrs = Object.entries(obj).map(([k, v]) => `${k}: ${v}`).join('; ');
+        } catch (e) {
+          parsedAttrs = String(order.attributes);
+        }
+      }
+
+      return {
+        'SL': idx + 1,
+        'Order ID': order.id,
+        'Order Date': orderDate,
+        'Customer Name': order.customer_name || '',
+        'Email': order.email || '',
+        'Phone': order.phone || '',
+        'Address': (order.address || '').replace(/[\r\n]+/g, ' '),
+        'Product Name': order.product_name || '',
+        'Unit Price ($)': Number(order.product_price || 0).toFixed(2),
+        'Quantity': order.quantity || 1,
+        'Total ($)': ((Number(order.product_price) || 0) * (Number(order.quantity) || 1)).toFixed(2),
+        'Attributes': parsedAttrs,
+        'Shipping Area': order.shipping_area || 'Standard',
+        'Status': (order.status || 'pending').toUpperCase(),
+        'Est. Delivery': formatDate(order.estimated_delivery),
+        'Device Fingerprint': order.device_id || ''
+      };
+    });
+
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `swiftcart_orders_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showSuccess(`Successfully exported ${orders.length} orders to CSV file!`, 'Orders Exported');
+  };
+
+  const exportMonthlySalesAnalyticsToCSV = () => {
+    if (orders.length === 0) {
+      showInfo('No sales data available to export.');
+      return;
+    }
+
+    const monthlyMap: Record<string, {
+      revenue: number;
+      totalOrders: number;
+      delivered: number;
+      confirmed: number;
+      pending: number;
+      products: Record<string, number>;
+      customers: Set<string>;
+    }> = {};
+
+    orders.forEach(order => {
+      let dateStr = '';
+      const createdAt = order.created_at as any;
+      if (createdAt) {
+        if (typeof createdAt === 'object' && createdAt !== null && 'toDate' in createdAt) {
+          dateStr = createdAt.toDate().toISOString().slice(0, 7);
+        } else if (typeof createdAt === 'string') {
+          dateStr = new Date(createdAt).toISOString().slice(0, 7);
+        }
+      }
+      if (!dateStr || dateStr.length < 7) {
+        dateStr = new Date().toISOString().slice(0, 7);
+      }
+
+      if (!monthlyMap[dateStr]) {
+        monthlyMap[dateStr] = {
+          revenue: 0,
+          totalOrders: 0,
+          delivered: 0,
+          confirmed: 0,
+          pending: 0,
+          products: {},
+          customers: new Set()
+        };
+      }
+
+      const price = Number(order.product_price) || 0;
+      const qty = Number(order.quantity) || 1;
+      const itemTotal = price * qty;
+
+      monthlyMap[dateStr].revenue += itemTotal;
+      monthlyMap[dateStr].totalOrders += 1;
+      if (order.status === 'delivered') monthlyMap[dateStr].delivered += 1;
+      else if (order.status === 'confirmed') monthlyMap[dateStr].confirmed += 1;
+      else monthlyMap[dateStr].pending += 1;
+
+      if (order.product_name) {
+        monthlyMap[dateStr].products[order.product_name] = (monthlyMap[dateStr].products[order.product_name] || 0) + qty;
+      }
+      if (order.email || order.customer_name) {
+        monthlyMap[dateStr].customers.add(order.email || order.customer_name);
+      }
+    });
+
+    const sortedMonths = Object.keys(monthlyMap).sort();
+    const exportData = sortedMonths.map(month => {
+      const data = monthlyMap[month];
+      const aov = data.totalOrders > 0 ? (data.revenue / data.totalOrders).toFixed(2) : '0.00';
+      
+      let topProduct = 'N/A';
+      let topQty = 0;
+      Object.entries(data.products).forEach(([name, count]) => {
+        if (count > topQty) {
+          topQty = count;
+          topProduct = `${name} (${count} items)`;
+        }
+      });
+
+      return {
+        'Month Period': month,
+        'Gross Revenue ($)': data.revenue.toFixed(2),
+        'Total Orders': data.totalOrders,
+        'Delivered Orders': data.delivered,
+        'Confirmed Orders': data.confirmed,
+        'Pending Orders': data.pending,
+        'Average Order Value ($)': aov,
+        'Unique Customer Count': data.customers.size,
+        'Top Selling Product': topProduct
+      };
+    });
+
+    const csv = Papa.unparse(exportData);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `monthly_sales_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showSuccess('Monthly sales analytics exported to CSV file!', 'Analytics Exported');
   };
 
   const openEditModal = (product: Product) => {
@@ -798,17 +991,17 @@ export default function AdminDashboard() {
         const validData = importedData.filter((p: any) => p.name && !isNaN(p.price));
 
         if (validData.length === 0) {
-          alert('No valid products found in CSV.');
+          showError('No valid products found in CSV file.', 'Import Failed');
           return;
         }
 
         try {
           await Promise.all(validData.map(p => addDoc(collection(db, 'products'), p)));
-          alert(`Successfully imported ${validData.length} products!`);
+          showSuccess(`Successfully imported ${validData.length} products!`, 'Import Completed');
           fetchAll();
         } catch (err) {
           console.error(err);
-          alert('An error occurred during import.');
+          showError('An error occurred during CSV import.');
         }
       }
     });
@@ -1121,10 +1314,26 @@ export default function AdminDashboard() {
                       <h3 className="text-2xl font-bold mb-2">Welcome to your Dashboard</h3>
                       <p className="text-indigo-100">Manage your store, track orders, and analyze your performance.</p>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={exportMonthlySalesAnalyticsToCSV}
+                        className="px-5 py-3 bg-indigo-700/80 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors flex items-center gap-2 border border-indigo-400/40 shadow-sm cursor-pointer"
+                        title="Export Monthly Sales & Performance Trends as CSV"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export Sales CSV
+                      </button>
+                      <button
+                        onClick={exportOrdersToCSV}
+                        className="px-5 py-3 bg-indigo-700/80 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors flex items-center gap-2 border border-indigo-400/40 shadow-sm cursor-pointer"
+                        title="Export Complete Orders Record as CSV"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Export Orders CSV
+                      </button>
                       <button 
                         onClick={handleSeedData}
-                        className="px-6 py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-colors flex items-center gap-2 shadow-lg"
+                        className="px-5 py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-colors flex items-center gap-2 shadow-lg cursor-pointer"
                       >
                         <Plus className="h-5 w-5" />
                         Seed Demo Data
@@ -1162,6 +1371,9 @@ export default function AdminDashboard() {
                       color="amber"
                     />
                   </div>
+
+                  {/* Recharts Monthly Sales Performance Trends Widget */}
+                  <MonthlySalesChart orders={orders} />
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     {/* Recent Orders */}
@@ -1428,6 +1640,14 @@ export default function AdminDashboard() {
                       <p className="text-gray-500 text-sm">Track shipments and update delivery statuses.</p>
                     </div>
                     <div className="flex items-center gap-3">
+                      <button
+                        onClick={exportOrdersToCSV}
+                        className="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-indigo-500/20 cursor-pointer"
+                        title="Download all orders in CSV spreadsheet format"
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Export CSV
+                      </button>
                       <div className="px-4 py-2 bg-indigo-50 rounded-xl text-indigo-600 text-sm font-bold">
                         {orders.length} Total Orders
                       </div>

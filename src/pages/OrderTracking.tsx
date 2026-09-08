@@ -3,9 +3,11 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { collection, getDoc, getDocs, query, where, doc, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion } from 'motion/react';
-import { Package, Truck, CheckCircle, Clock, ArrowLeft, MapPin, Phone, User, ChevronRight } from 'lucide-react';
+import { Package, Truck, CheckCircle, Clock, ArrowLeft, MapPin, Phone, User, ChevronRight, FileText, Copy, Headphones } from 'lucide-react';
 import { Order } from '../types';
 import { formatPrice } from '../lib/utils';
+import { useToast } from '../context/ToastContext';
+import OrderProgressBar from '../components/OrderProgressBar';
 
 const steps = [
   { id: 'pending', label: 'Order Placed', icon: Clock, description: 'We have received your order.' },
@@ -17,6 +19,7 @@ const steps = [
 export default function OrderTracking() {
   const { id: urlId } = useParams();
   const navigate = useNavigate();
+  const { showSuccess, showError, showInfo } = useToast();
   const [searchQuery, setSearchQuery] = useState(urlId || '');
   const [order, setOrder] = useState<(Order & { product_image?: string }) | null>(null);
   const [searchResults, setSearchResults] = useState<(Order & { product_image?: string })[]>([]);
@@ -51,12 +54,27 @@ export default function OrderTracking() {
       if (urlId !== id) {
         navigate(`/track-order/${id}`, { replace: true });
       }
+      showSuccess(`Viewing details for Order #${id}`, 'Order Found');
     } catch (err: any) {
       setError(err.message);
       setOrder(null);
+      showError(err.message || 'Unable to find order.', 'Search Result');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCopyTrackingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      showSuccess('Tracking link copied to clipboard!', 'Link Copied');
+    } catch (err) {
+      showInfo('You can copy the link directly from your browser URL bar.', 'Order URL');
+    }
+  };
+
+  const handleContactSupport = () => {
+    showSuccess('Connecting you with support at support@swiftcart.com', 'Customer Care');
   };
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -92,10 +110,12 @@ export default function OrderTracking() {
 
       if (uniqueResults.length === 0) {
         setError('No orders found matching your search.');
+        showError('No orders found matching that query.', 'No Results');
       } else if (uniqueResults.length === 1) {
         fetchOrder(uniqueResults[0].id);
       } else {
         setSearchResults(uniqueResults);
+        showSuccess(`Found ${uniqueResults.length} orders matching your search.`, 'Results Found');
         if (urlId) {
           navigate('/track-order', { replace: true });
         }
@@ -103,6 +123,7 @@ export default function OrderTracking() {
     } catch (err) {
       console.error(err);
       setError('An error occurred while searching.');
+      showError('Failed to search orders. Please check your connection.', 'Search Error');
     } finally {
       setLoading(false);
     }
@@ -278,68 +299,16 @@ export default function OrderTracking() {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden mb-8">
-        <div className="p-8 border-b border-gray-50 bg-gray-50/50">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-extrabold text-gray-900">Track Your Order</h1>
-                <p className="text-gray-500">Estimated Delivery: <span className="font-bold text-indigo-600">{formatDate(order.estimated_delivery)}</span></p>
-                {order.attributes && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {Object.entries(JSON.parse(order.attributes)).map(([key, value]) => (
-                      <span key={key} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
-                        {key}: {value as string}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-sm font-bold self-start md:self-center">
-                Status: {order.status.toUpperCase()}
-              </div>
-            </div>
-        </div>
-
-        <div className="p-8 md:p-12">
-          {/* Progress Indicator */}
-          <div className="relative">
-            {/* Background Line */}
-            <div className="absolute top-5 left-0 w-full h-1 bg-gray-100 hidden md:block"></div>
-            {/* Active Line */}
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${(activeIndex / (steps.length - 1)) * 100}%` }}
-              className="absolute top-5 left-0 h-1 bg-indigo-600 hidden md:block transition-all duration-1000"
-            ></motion.div>
-
-            <div className="relative flex flex-col md:flex-row justify-between gap-8 md:gap-0">
-              {steps.map((step, index) => {
-                const isCompleted = index <= activeIndex;
-                const isActive = index === activeIndex;
-                const Icon = step.icon;
-
-                return (
-                  <div key={step.id} className="flex md:flex-col items-center md:text-center relative z-10 group">
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: index * 0.2 }}
-                      className={`h-10 w-10 rounded-full flex items-center justify-center border-4 transition-all duration-500 ${
-                        isCompleted ? 'bg-indigo-600 border-indigo-100 text-white' : 'bg-white border-gray-100 text-gray-300'
-                      } ${isActive ? 'ring-4 ring-indigo-50' : ''}`}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </motion.div>
-                    <div className="ml-4 md:ml-0 md:mt-4">
-                      <h3 className={`font-bold text-sm ${isCompleted ? 'text-gray-900' : 'text-gray-400'}`}>{step.label}</h3>
-                      <p className="text-xs text-gray-500 max-w-[150px] hidden md:block mt-1">{step.description}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+      {/* Visual Order Progress Bar Component */}
+      <div className="mb-8">
+        <OrderProgressBar
+          status={order.status}
+          estimatedDelivery={order.estimated_delivery}
+          orderDate={order.created_at}
+          carrier="Express Fleet & Logistics"
+          trackingNumber={`TRK-${order.id.slice(0, 8).toUpperCase()}`}
+          shippingAddress={order.address}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -444,9 +413,34 @@ export default function OrderTracking() {
           <div className="bg-indigo-600 rounded-3xl p-8 text-white shadow-lg shadow-indigo-500/25">
             <h3 className="text-lg font-bold mb-2">Need Help?</h3>
             <p className="text-indigo-100 text-sm mb-6">If you have any questions regarding your order, please contact our support team.</p>
-            <button className="w-full py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 transition-colors">
-              Contact Support
-            </button>
+            <div className="space-y-3">
+              <button
+                onClick={handleContactSupport}
+                className="w-full py-3 bg-white text-indigo-600 font-bold rounded-xl hover:bg-indigo-50 active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+              >
+                <Headphones className="h-4 w-4" />
+                Contact Support
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleCopyTrackingLink}
+                  className="py-2.5 px-3 bg-indigo-700/80 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy Link
+                </button>
+                <button
+                  onClick={() => {
+                    showSuccess(`Opening invoice for Order #${order.id}`, 'Invoice Ready');
+                    navigate(`/invoice/${order.id}`);
+                  }}
+                  className="py-2.5 px-3 bg-indigo-700/80 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  View Invoice
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

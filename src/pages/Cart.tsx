@@ -1,15 +1,37 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import { useToast } from '../context/ToastContext';
 import { formatPrice } from '../lib/utils';
 import { Trash2, ShoppingBag, ArrowLeft, Plus, Minus, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function Cart() {
   const { cart, removeFromCart, clearCart, cartCount, addToCart, decreaseQuantity } = useCart();
+  const { showSuccess, showInfo } = useToast();
   const navigate = useNavigate();
 
   const subtotal = cart.reduce((acc, item) => acc + item.price * item.quantity, 0);
+
+  const handleClearCart = () => {
+    clearCart();
+    showInfo('Your shopping cart has been cleared.', 'Cart Cleared');
+  };
+
+  const handleRemove = (item: any) => {
+    removeFromCart(item.id, item.selectedAttributes);
+    showInfo(`${item.name} removed from your cart.`, 'Item Removed');
+  };
+
+  const handleIncrease = (item: any) => {
+    addToCart(item, item.selectedAttributes);
+    showSuccess(`Increased ${item.name} quantity`, 'Cart Updated');
+  };
+
+  const handleDecrease = (item: any) => {
+    decreaseQuantity(item.id, item.selectedAttributes);
+    showInfo(`Decreased ${item.name} quantity`, 'Cart Updated');
+  };
 
   if (cartCount === 0) {
     return (
@@ -36,8 +58,8 @@ export default function Cart() {
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">Shopping Cart</h1>
         <button
-          onClick={() => clearCart()}
-          className="text-sm font-bold text-red-600 hover:text-red-700 flex items-center gap-1"
+          onClick={handleClearCart}
+          className="text-sm font-bold text-red-600 hover:text-red-700 flex items-center gap-1 cursor-pointer transition-colors active:scale-95"
         >
           <Trash2 className="h-4 w-4" />
           Clear Cart
@@ -74,22 +96,25 @@ export default function Cart() {
                 </div>
                 <div className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-1">
                   <button
-                    onClick={() => decreaseQuantity(item.id, item.selectedAttributes)}
-                    className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
+                    onClick={() => handleDecrease(item)}
+                    className="p-1 text-gray-400 hover:text-indigo-600 transition-colors active:scale-90"
+                    aria-label="Decrease quantity"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
                   <span className="text-sm font-bold text-gray-900 dark:text-white w-4 text-center">{item.quantity}</span>
                   <button
-                    onClick={() => addToCart(item, item.selectedAttributes)}
-                    className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
+                    onClick={() => handleIncrease(item)}
+                    className="p-1 text-gray-400 hover:text-indigo-600 transition-colors active:scale-90"
+                    aria-label="Increase quantity"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </div>
                 <button
-                  onClick={() => removeFromCart(item.id, item.selectedAttributes)}
-                  className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                  onClick={() => handleRemove(item)}
+                  className="p-2 text-gray-300 hover:text-red-500 transition-colors active:scale-90"
+                  aria-label="Remove item"
                 >
                   <Trash2 className="h-5 w-5" />
                 </button>
@@ -124,11 +149,14 @@ export default function Cart() {
               </div>
             </div>
             <button
-              onClick={() => navigate('/checkout')}
-              className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+              onClick={() => {
+                showSuccess('Proceeding to checkout...', 'Checkout');
+                navigate('/checkout');
+              }}
+              className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 cursor-pointer"
             >
               <CreditCard className="h-5 w-5" />
-              Checkout
+              Proceed to Checkout
             </button>
           </div>
         </div>
