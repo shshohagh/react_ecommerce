@@ -540,7 +540,8 @@ export default function ProductFilterSidebar({
               {[
                 { rating: 0, label: 'All Ratings' },
                 { rating: 4, label: '4 Stars & Above' },
-                { rating: 3, label: '3 Stars & Above' }
+                { rating: 3, label: '3 Stars & Above' },
+                { rating: 2, label: '2 Stars & Above' }
               ].map(opt => {
                 const isSelected = filters.minRating === opt.rating;
                 return (

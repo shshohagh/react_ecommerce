@@ -129,9 +129,11 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-          (request.auth.token.email == "shshohagh4@gmail.com" && request.auth.token.email_verified == true)); // Default admin
+      return isAuthenticated() && (
+        request.auth.token.email == "shshohagh4@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function isValidEmail(email) {
@@ -189,15 +191,15 @@ service cloud.firestore {
     }
 
     match /user_addresses/{addressId} {
-      allow read: if isAuthenticated() && (resource == null || resource.data.user_id == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.user_id == request.auth.uid || isAdmin());
       allow update, delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
     }
 
     match /user_preferences/{prefId} {
-      allow read: if isAuthenticated() && (resource == null || resource.data.user_id == request.auth.uid || isAdmin());
-      allow create, update: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
-      allow delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow read: if isAuthenticated() && (prefId == request.auth.uid || resource.data.user_id == request.auth.uid || isAdmin());
+      allow create, update: if isAuthenticated() && (prefId == request.auth.uid || request.resource.data.user_id == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (prefId == request.auth.uid || resource.data.user_id == request.auth.uid || isAdmin());
     }
 
     match /live_product_activity/{productId} {
@@ -244,17 +246,17 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && request.auth.uid == userId;
-      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin();
+      allow update: if (isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /wishlist/{wishlistId} {
-      allow read: if isAuthenticated() && (request.auth.uid == resource.data.user_id || isAdmin());
-      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
-      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.user_id || isAdmin());
+      allow read: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && (request.resource.data.user_id == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.user_id == request.auth.uid || isAdmin());
     }
 
-    match /test/connection {
+    match /test/{docId} {
       allow read: if true;
     }
   }

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Product, Review } from '../types';
-import { ArrowRight, Heart, Star, ShoppingCart, Zap, ArrowLeftRight, Eye } from 'lucide-react';
+import { ArrowRight, Heart, Star, ShoppingCart, Zap, ArrowLeftRight, Eye, Bell } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useCart } from '../context/CartContext';
 import { useCompare } from '../context/CompareContext';
@@ -12,6 +12,7 @@ import { useToast } from '../context/ToastContext';
 import { useWishlist } from '../context/WishlistContext';
 import { addRecentlyViewed } from '../utils/recentlyViewed';
 import QuickViewModal from './QuickViewModal';
+import BackInStockModal from './BackInStockModal';
 
 interface ProductCardProps {
   product: Product;
@@ -30,7 +31,12 @@ export default function ProductCard({ product }: ProductCardProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [averageRating, setAverageRating] = useState<number>(0);
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+  const [isBackInStockOpen, setIsBackInStockOpen] = useState(false);
   const [wishlistLoading, setWishlistLoading] = useState(false);
+
+  const isOutOfStock = product.stock_status === 'out_of_stock' || 
+    (typeof product.stock === 'number' && product.stock <= 0) || 
+    product.in_stock === false;
 
   const isWishlisted = isInWishlist(product.id);
   const isCompared = isInCompare(product.id);
@@ -123,9 +129,15 @@ export default function ProductCard({ product }: ProductCardProps) {
           />
         </Link>
 
-        {product.is_featured && (
-          <span className="absolute top-3 left-3 bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+        {product.is_featured && !isOutOfStock && (
+          <span className="absolute top-3 left-3 bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
             Featured
+          </span>
+        )}
+
+        {isOutOfStock && (
+          <span className="absolute top-3 left-3 bg-rose-600 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm z-10">
+            Out of Stock
           </span>
         )}
 
@@ -193,38 +205,55 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-auto">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              addToCart(product);
-              showSuccess(`${product.name} added to your cart!`, 'Cart Updated');
-            }}
-            className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 active:scale-95 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            aria-label={`Add ${product.name} to cart`}
-          >
-            <ShoppingCart className="h-3.5 w-3.5" />
-            Add to Cart
-          </button>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              addRecentlyViewed(product);
-              if (product.attributes) {
-                navigate(`/product/${product.id}`);
-              } else {
-                addToCart(product);
-                showSuccess(`Proceeding to checkout with ${product.name}...`, 'Checkout Ready');
-                navigate('/checkout');
-              }
-            }}
-            className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/25 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            aria-label={`Order ${product.name} now`}
-          >
-            <Zap className="h-3.5 w-3.5" />
-            Order Now
-          </button>
+          {isOutOfStock ? (
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsBackInStockOpen(true);
+              }}
+              className="col-span-2 flex items-center justify-center gap-2 px-3 py-2.5 bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold uppercase tracking-wider rounded-xl hover:bg-amber-100 dark:hover:bg-amber-900/60 active:scale-95 transition-all cursor-pointer shadow-xs"
+              aria-label={`Notify me when ${product.name} is in stock`}
+            >
+              <Bell className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Notify When Available</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  addToCart(product);
+                  showSuccess(`${product.name} added to your cart!`, 'Cart Updated');
+                }}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 active:scale-95 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                aria-label={`Add ${product.name} to cart`}
+              >
+                <ShoppingCart className="h-3.5 w-3.5" />
+                Add to Cart
+              </button>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  addRecentlyViewed(product);
+                  if (product.attributes) {
+                    navigate(`/product/${product.id}`);
+                  } else {
+                    addToCart(product);
+                    showSuccess(`Proceeding to checkout with ${product.name}...`, 'Checkout Ready');
+                    navigate('/checkout');
+                  }
+                }}
+                className="flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-600 text-white text-[10px] font-bold uppercase tracking-wider rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-500/25 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                aria-label={`Order ${product.name} now`}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                Order Now
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -233,6 +262,13 @@ export default function ProductCard({ product }: ProductCardProps) {
         product={product}
         isOpen={isQuickViewOpen}
         onClose={() => setIsQuickViewOpen(false)}
+      />
+
+      {/* Out of Stock Restock Notification Modal */}
+      <BackInStockModal
+        isOpen={isBackInStockOpen}
+        onClose={() => setIsBackInStockOpen(false)}
+        product={product}
       />
     </div>
   );

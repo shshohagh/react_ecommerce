@@ -184,6 +184,23 @@
       },
       "required": ["email", "product_id"]
     },
+    "StockNotification": {
+      "title": "StockNotification",
+      "description": "An email alert subscription when an out-of-stock item is replenished.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "product_id": { "type": "string", "description": "ID of product" },
+        "product_name": { "type": "string", "description": "Name of product" },
+        "product_price": { "type": "number", "description": "Price of product" },
+        "product_image": { "type": "string", "description": "Image URL of product" },
+        "product_category": { "type": "string", "description": "Category of product" },
+        "user_id": { "type": "string", "description": "User ID if signed in" },
+        "status": { "type": "string", "description": "Notification status (pending, notified)" },
+        "created_at": { "type": "string", "format": "date-time", "description": "Subscription timestamp" }
+      },
+      "required": ["email", "product_id"]
+    },
     "UserAddress": {
       "title": "UserAddress",
       "description": "A saved shipping address for a customer.",

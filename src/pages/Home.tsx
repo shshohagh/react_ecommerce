@@ -11,6 +11,7 @@ import { ShoppingBag, ChevronRight, ChevronLeft, ArrowUpDown, Search, X, Sliders
 import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '../hooks/useAuth';
 import ProductFilterSidebar, { FilterState } from '../components/ProductFilterSidebar';
+import PromotionalBanner from '../components/PromotionalBanner';
 
 const initialFilters: FilterState = {
   category: 'all',
@@ -206,7 +207,14 @@ export default function Home() {
   };
 
   return (
-    <div className="space-y-16 pb-20">
+    <div className="space-y-12 sm:space-y-16 pb-20">
+      {/* Reusable Promotional Banner - Cycles Store-wide Discounts & Offers */}
+      <PromotionalBanner 
+        onApplyCategory={(category) => {
+          setFilters(prev => ({ ...prev, category }));
+        }}
+      />
+
       {/* Hero Slider Section */}
       <section className="relative h-[500px] md:h-[600px] flex items-center overflow-hidden bg-gray-900">
         <AnimatePresence mode="wait">

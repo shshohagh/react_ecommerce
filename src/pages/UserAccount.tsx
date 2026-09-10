@@ -32,6 +32,7 @@ import { formatPrice, formatDate } from '../lib/utils';
 import { Order, UserAddress, UserPreferences } from '../types';
 import { collection, query, where, onSnapshot, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../utils/firestoreError';
 
 export default function UserAccount() {
   const { user, isAuthenticated } = useAuth();
@@ -80,8 +81,8 @@ export default function UserAccount() {
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
 
-  // User identifier for data isolation
-  const userId = user?.email || 'shshohagh4@gmail.com';
+  // User identifier for data isolation (prefer user.id which matches Firebase Auth uid)
+  const userId = user?.id || (isAuthenticated ? user?.email : null) || 'guest_user';
 
   // 1. Load Orders
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function UserAccount() {
       setOrders(orderList);
       setLoadingOrders(false);
     }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'orders');
       console.warn("Could not sync orders live:", error);
       setLoadingOrders(false);
     });
@@ -113,66 +115,129 @@ export default function UserAccount() {
   // 2. Load Saved Addresses
   useEffect(() => {
     setLoadingAddresses(true);
-    const addressesRef = collection(db, 'user_addresses');
-    
-    const unsubscribe = onSnapshot(addressesRef, (snapshot) => {
-      const addrList: UserAddress[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        addrList.push({
-          id: docSnap.id,
-          ...data
-        } as UserAddress);
-      });
 
-      if (addrList.length > 0) {
-        setAddresses(addrList);
-      } else {
-        // Seed initial default demo address if none exists
-        const defaultAddress: UserAddress = {
-          id: 'addr_default_1',
-          user_id: userId,
-          full_name: user?.name || 'Shohagh User',
-          phone: '+1 (555) 234-5678',
-          street_address: '742 Evergreen Terrace',
-          apartment: 'Suite 4B',
-          city: 'Springfield',
-          state: 'Oregon',
-          postal_code: '97477',
-          country: 'United States',
-          is_default: true,
-          label: 'Home',
-          created_at: new Date().toISOString()
-        };
-        setAddresses([defaultAddress]);
+    if (!isAuthenticated || !user?.id) {
+      // Guest mode: load addresses from localStorage
+      const saved = localStorage.getItem('swiftcart_guest_addresses');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setAddresses(parsed);
+            setLoadingAddresses(false);
+            return;
+          }
+        } catch (e) {}
       }
+      // Seed default demo address for guest
+      const defaultAddress: UserAddress = {
+        id: 'addr_default_1',
+        user_id: 'guest_user',
+        full_name: user?.name || 'Shohagh User',
+        phone: '+1 (555) 234-5678',
+        street_address: '742 Evergreen Terrace',
+        apartment: 'Suite 4B',
+        city: 'Springfield',
+        state: 'Oregon',
+        postal_code: '97477',
+        country: 'United States',
+        is_default: true,
+        label: 'Home',
+        created_at: new Date().toISOString()
+      };
+      setAddresses([defaultAddress]);
       setLoadingAddresses(false);
-    }, () => {
-      setLoadingAddresses(false);
-    });
+      return;
+    }
+
+    // Authenticated mode: scoped query for current user
+    const q = query(collection(db, 'user_addresses'), where('user_id', '==', user.id));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const addrList: UserAddress[] = [];
+        snapshot.forEach(docSnap => {
+          addrList.push({
+            id: docSnap.id,
+            ...docSnap.data()
+          } as UserAddress);
+        });
+        if (addrList.length > 0) {
+          setAddresses(addrList);
+        } else {
+          // Seed initial default address for new user
+          const defaultAddress: UserAddress = {
+            id: 'addr_default_1',
+            user_id: user.id,
+            full_name: user.name || 'Shohagh User',
+            phone: '+1 (555) 234-5678',
+            street_address: '742 Evergreen Terrace',
+            apartment: 'Suite 4B',
+            city: 'Springfield',
+            state: 'Oregon',
+            postal_code: '97477',
+            country: 'United States',
+            is_default: true,
+            label: 'Home',
+            created_at: new Date().toISOString()
+          };
+          setAddresses([defaultAddress]);
+        }
+        setLoadingAddresses(false);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'user_addresses');
+        console.warn("Could not sync user addresses live from Firestore:", error);
+        setLoadingAddresses(false);
+      }
+    );
 
     return () => unsubscribe();
-  }, [userId, user?.name]);
+  }, [isAuthenticated, user?.id, user?.name]);
 
   // 3. Load Notification Preferences
   useEffect(() => {
-    const prefsDocRef = doc(db, 'user_preferences', userId);
-    const unsubscribe = onSnapshot(prefsDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setPreferences(docSnap.data() as UserPreferences);
-      } else {
-        // Check localStorage fallback
-        const saved = localStorage.getItem(`swiftcart_prefs_${userId}`);
+    if (!isAuthenticated || !user?.id) {
+      // Guest mode: load preferences from localStorage
+      const saved = localStorage.getItem('swiftcart_prefs_guest');
+      if (saved) {
+        try {
+          setPreferences(JSON.parse(saved));
+        } catch (e) {}
+      }
+      return;
+    }
+
+    // Authenticated mode: listen to user_preferences document
+    const prefsDocRef = doc(db, 'user_preferences', user.id);
+    const unsubscribe = onSnapshot(
+      prefsDocRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setPreferences(docSnap.data() as UserPreferences);
+        } else {
+          const saved = localStorage.getItem(`swiftcart_prefs_${user.id}`);
+          if (saved) {
+            try {
+              setPreferences(JSON.parse(saved));
+            } catch (e) {}
+          }
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, `user_preferences/${user.id}`);
+        console.warn("Could not sync user preferences live:", error);
+        const saved = localStorage.getItem(`swiftcart_prefs_${user.id}`);
         if (saved) {
           try {
             setPreferences(JSON.parse(saved));
           } catch (e) {}
         }
       }
-    });
+    );
 
     return () => unsubscribe();
-  }, [userId]);
+  }, [isAuthenticated, user?.id]);
 
   // Handle Save Address
   const handleSaveAddress = async (e: React.FormEvent) => {
@@ -184,11 +249,11 @@ export default function UserAccount() {
 
     try {
       const addressId = editingAddress?.id || `addr_${Date.now()}`;
-      const addressDocRef = doc(db, 'user_addresses', addressId);
+      const effectiveUserId = user?.id || 'guest_user';
 
       const addressPayload: UserAddress = {
         id: addressId,
-        user_id: userId,
+        user_id: effectiveUserId,
         full_name: addressForm.full_name,
         phone: addressForm.phone,
         street_address: addressForm.street_address,
@@ -202,25 +267,32 @@ export default function UserAccount() {
         created_at: editingAddress?.created_at || new Date().toISOString()
       };
 
-      // If marked as default, unset previous defaults
-      if (addressPayload.is_default) {
-        addresses.forEach(async (a) => {
-          if (a.id && a.id !== addressId && a.is_default) {
-            await updateDoc(doc(db, 'user_addresses', a.id), { is_default: false }).catch(() => {});
-          }
-        });
+      if (isAuthenticated && user?.id) {
+        const addressDocRef = doc(db, 'user_addresses', addressId);
+        // If marked as default, unset previous defaults
+        if (addressPayload.is_default) {
+          addresses.forEach(async (a) => {
+            if (a.id && a.id !== addressId && a.is_default) {
+              await updateDoc(doc(db, 'user_addresses', a.id), { is_default: false }).catch(() => {});
+            }
+          });
+        }
+        await setDoc(addressDocRef, addressPayload);
       }
 
-      await setDoc(addressDocRef, addressPayload);
-
-      // Local state update
-      setAddresses(prev => {
-        const filtered = prev.filter(a => a.id !== addressId);
+      // Local state update & storage update
+      const updatedList = (() => {
+        const filtered = addresses.filter(a => a.id !== addressId);
         if (addressPayload.is_default) {
           return [addressPayload, ...filtered.map(a => ({ ...a, is_default: false }))];
         }
         return [...filtered, addressPayload];
-      });
+      })();
+
+      setAddresses(updatedList);
+      if (!isAuthenticated || !user?.id) {
+        localStorage.setItem('swiftcart_guest_addresses', JSON.stringify(updatedList));
+      }
 
       showSuccess(
         editingAddress ? 'Address updated successfully!' : 'New shipping address added!',
@@ -241,6 +313,7 @@ export default function UserAccount() {
         is_default: false
       });
     } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'user_addresses');
       console.error('Error saving address:', err);
       showError('Failed to save address. Please try again.', 'Error');
     }
@@ -249,10 +322,17 @@ export default function UserAccount() {
   // Handle Delete Address
   const handleDeleteAddress = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'user_addresses', id)).catch(() => {});
-      setAddresses(prev => prev.filter(a => a.id !== id));
+      if (isAuthenticated && user?.id) {
+        await deleteDoc(doc(db, 'user_addresses', id)).catch(() => {});
+      }
+      const updated = addresses.filter(a => a.id !== id);
+      setAddresses(updated);
+      if (!isAuthenticated || !user?.id) {
+        localStorage.setItem('swiftcart_guest_addresses', JSON.stringify(updated));
+      }
       showSuccess('Shipping address removed.', 'Address Deleted');
     } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `user_addresses/${id}`);
       showError('Could not delete address.', 'Error');
     }
   };
@@ -261,19 +341,24 @@ export default function UserAccount() {
   const handleSetDefaultAddress = async (targetAddress: UserAddress) => {
     if (!targetAddress.id) return;
     try {
-      // Update Firestore
-      await updateDoc(doc(db, 'user_addresses', targetAddress.id), { is_default: true }).catch(() => {});
-      
-      addresses.forEach(async (a) => {
-        if (a.id && a.id !== targetAddress.id && a.is_default) {
-          await updateDoc(doc(db, 'user_addresses', a.id), { is_default: false }).catch(() => {});
-        }
-      });
+      if (isAuthenticated && user?.id) {
+        await updateDoc(doc(db, 'user_addresses', targetAddress.id), { is_default: true }).catch(() => {});
+        addresses.forEach(async (a) => {
+          if (a.id && a.id !== targetAddress.id && a.is_default) {
+            await updateDoc(doc(db, 'user_addresses', a.id), { is_default: false }).catch(() => {});
+          }
+        });
+      }
 
-      setAddresses(prev => prev.map(a => ({
+      const updated = addresses.map(a => ({
         ...a,
         is_default: a.id === targetAddress.id
-      })));
+      }));
+
+      setAddresses(updated);
+      if (!isAuthenticated || !user?.id) {
+        localStorage.setItem('swiftcart_guest_addresses', JSON.stringify(updated));
+      }
 
       showSuccess(`"${targetAddress.label || 'Selected'}" set as default delivery address.`, 'Default Address Updated');
     } catch (err) {
@@ -285,18 +370,24 @@ export default function UserAccount() {
   const handleSavePreferences = async () => {
     setSavingPrefs(true);
     try {
-      const prefsDocRef = doc(db, 'user_preferences', userId);
+      const targetPrefId = user?.id || userId;
       const payload: UserPreferences = {
         ...preferences,
-        user_id: userId,
+        user_id: targetPrefId,
         updated_at: new Date().toISOString()
       };
-      await setDoc(prefsDocRef, payload);
-      localStorage.setItem(`swiftcart_prefs_${userId}`, JSON.stringify(payload));
+
+      if (isAuthenticated && user?.id) {
+        const prefsDocRef = doc(db, 'user_preferences', user.id);
+        await setDoc(prefsDocRef, payload);
+      }
+
+      localStorage.setItem(`swiftcart_prefs_${targetPrefId}`, JSON.stringify(payload));
       showSuccess('Your email & communication preferences have been saved!', 'Preferences Saved');
     } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `user_preferences/${user?.id || 'guest'}`);
       console.warn("Saving to local storage as fallback:", err);
-      localStorage.setItem(`swiftcart_prefs_${userId}`, JSON.stringify(preferences));
+      localStorage.setItem(`swiftcart_prefs_${user?.id || userId}`, JSON.stringify(preferences));
       showSuccess('Preferences saved locally.', 'Updated');
     } finally {
       setSavingPrefs(false);

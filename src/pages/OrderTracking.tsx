@@ -8,6 +8,7 @@ import { Order } from '../types';
 import { formatPrice } from '../lib/utils';
 import { useToast } from '../context/ToastContext';
 import OrderProgressBar from '../components/OrderProgressBar';
+import ShippingRouteMap from '../components/ShippingRouteMap';
 
 const steps = [
   { id: 'pending', label: 'Order Placed', icon: Clock, description: 'We have received your order.' },
@@ -308,6 +309,18 @@ export default function OrderTracking() {
           carrier="Express Fleet & Logistics"
           trackingNumber={`TRK-${order.id.slice(0, 8).toUpperCase()}`}
           shippingAddress={order.address}
+        />
+      </div>
+
+      {/* Visual Real-Time Shipping Route Map */}
+      <div className="mb-8">
+        <ShippingRouteMap
+          status={order.status}
+          orderId={order.id}
+          destinationAddress={order.address}
+          customerName={order.customer_name}
+          trackingNumber={`TRK-${order.id.slice(0, 8).toUpperCase()}`}
+          estimatedDelivery={order.estimated_delivery}
         />
       </div>
 

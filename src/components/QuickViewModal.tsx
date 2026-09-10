@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Star, ShoppingCart, Zap, Eye, Check, Heart, ShieldCheck, Truck, ArrowRight, ArrowLeftRight } from 'lucide-react';
+import { X, Star, ShoppingCart, Zap, Eye, Check, Heart, ShieldCheck, Truck, ArrowRight, ArrowLeftRight, Bell } from 'lucide-react';
 import { Product, Review, ProductVariation } from '../types';
 import { useCart } from '../context/CartContext';
 import { useCompare } from '../context/CompareContext';
@@ -9,6 +9,7 @@ import { useToast } from '../context/ToastContext';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase';
+import BackInStockModal from './BackInStockModal';
 
 interface QuickViewModalProps {
   product: Product | null;
@@ -29,6 +30,13 @@ export default function QuickViewModal({ product, isOpen, onClose }: QuickViewMo
   const [reviews, setReviews] = useState<Review[]>([]);
   const [averageRating, setAverageRating] = useState<number>(0);
   const [isAdded, setIsAdded] = useState(false);
+  const [isBackInStockOpen, setIsBackInStockOpen] = useState(false);
+
+  const isOutOfStock = product ? (
+    product.stock_status === 'out_of_stock' || 
+    (typeof product.stock === 'number' && product.stock <= 0) || 
+    product.in_stock === false
+  ) : false;
 
   useEffect(() => {
     if (product) {
@@ -204,8 +212,10 @@ export default function QuickViewModal({ product, isOpen, onClose }: QuickViewMo
                   <span className="text-xs text-gray-400">
                     ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
                   </span>
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 ml-1" />
-                  <span className="text-xs font-semibold text-green-600 dark:text-green-400">In Stock</span>
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ml-1 ${isOutOfStock ? 'bg-rose-500' : 'bg-green-500'}`} />
+                  <span className={`text-xs font-semibold ${isOutOfStock ? 'text-rose-600 dark:text-rose-400' : 'text-green-600 dark:text-green-400'}`}>
+                    {isOutOfStock ? 'Out of Stock' : 'In Stock'}
+                  </span>
                 </div>
 
                 {/* Price Display */}
@@ -255,34 +265,50 @@ export default function QuickViewModal({ product, isOpen, onClose }: QuickViewMo
 
               {/* Action Buttons */}
               <div className="space-y-3 pt-4 border-t border-gray-100 dark:border-gray-800">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    onClick={handleAddToCart}
-                    id="quick-view-add-to-cart-btn"
-                    className="flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 rounded-2xl font-bold text-xs uppercase tracking-wider hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all cursor-pointer"
-                  >
-                    {isAdded ? (
-                      <>
-                        <Check className="h-4 w-4 text-green-600" />
-                        <span>Added to Cart!</span>
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingCart className="h-4 w-4" />
-                        <span>Add to Cart</span>
-                      </>
-                    )}
-                  </button>
+                {isOutOfStock ? (
+                  <div>
+                    <button
+                      onClick={() => setIsBackInStockOpen(true)}
+                      id="quick-view-notify-btn"
+                      className="w-full flex items-center justify-center gap-2 py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-amber-500/25 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Bell className="h-4 w-4" />
+                      <span>Notify Me When Available</span>
+                    </button>
+                    <p className="text-[11px] text-gray-400 text-center mt-2">
+                      Get an instant email alert when this item is restocked.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={handleAddToCart}
+                      id="quick-view-add-to-cart-btn"
+                      className="flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 rounded-2xl font-bold text-xs uppercase tracking-wider hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all cursor-pointer"
+                    >
+                      {isAdded ? (
+                        <>
+                          <Check className="h-4 w-4 text-green-600" />
+                          <span>Added to Cart!</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingCart className="h-4 w-4" />
+                          <span>Add to Cart</span>
+                        </>
+                      )}
+                    </button>
 
-                  <button
-                    onClick={handleBuyNow}
-                    id="quick-view-buy-now-btn"
-                    className="flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/25 active:scale-95 transition-all cursor-pointer"
-                  >
-                    <Zap className="h-4 w-4" />
-                    <span>Buy Now</span>
-                  </button>
-                </div>
+                    <button
+                      onClick={handleBuyNow}
+                      id="quick-view-buy-now-btn"
+                      className="flex items-center justify-center gap-2 py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/25 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Zap className="h-4 w-4" />
+                      <span>Buy Now</span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between pt-2">
                   <button
@@ -313,6 +339,14 @@ export default function QuickViewModal({ product, isOpen, onClose }: QuickViewMo
             </div>
           </div>
         </motion.div>
+
+        {/* Back in Stock Modal */}
+        <BackInStockModal
+          isOpen={isBackInStockOpen}
+          onClose={() => setIsBackInStockOpen(false)}
+          product={product}
+          selectedAttributes={selectedAttributes}
+        />
       </div>
     </AnimatePresence>
   );
